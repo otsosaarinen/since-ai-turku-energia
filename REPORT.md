@@ -16,12 +16,13 @@
    FI-EE capacity, day-ahead consumption/wind/solar for the target and their change vs the previous day, spot ramps,
    calendar. Tests prove the filter equals the organiser's `rows_available_at`, that the data cut-off is <= origin,
    and that features are bit-identical when all not-yet-usable rows are deleted or overwritten with garbage.
-4. **Models.** LightGBM (CPU, 3 seeds averaged): quantile p10/p50/p90, 3-class direction, two spike classifiers.
+4. **Models.** LightGBM (CPU): quantile p10/p50/p90, 3-class direction, two spike classifiers. Small trees (8 leaves),
+   extra-trees mode, 6 seeds averaged per model, because the signal is weak and noisy so strong regularisation beats flexibility.
    Rounds chosen on a time-ordered inner split (last 14 days, 10 h embargo), then refit on the whole window.
-   p10/p90 are shifted by conformal offsets from the same holdout, which lifted coverage from ~0.65 to ~0.80.
+   p10/p90 are shifted by conformal offsets from the same holdout, which lifted coverage from ~0.65 to ~0.79.
    Post-processing: sorted quantiles, renormalised direction probabilities, spike probabilities scaled so high+low <= 1.
 5. **Explainability.** `top_drivers` = the three feature groups with the largest SHAP contribution to p50 for that row;
-   `data_cutoff_utc` = latest `first_usable_origin_utc` among the data used..
+   `data_cutoff_utc` = latest `first_usable_origin_utc` among the data used.
 
 ## Validation (7 Sep – 4 Oct 2026; training only on data/labels usable at 2026-09-06T21:00Z)
 | Metric | Baseline | Model |
@@ -32,8 +33,8 @@
 | Brier spikes (mean) | 0.1132 | 0.0967 |
 | Brier direction (3-class) | 0.4509 | 0.4121 |
 
-By horizon (model): MAE 42.3 (hour 1) -> 44.7 (hour 10); pinball 11.98 -> 12.69; coverage 0.82 -> 0.80
-(`outputs/validation/score/score_by_horizon.csv`).
+By horizon (model): MAE 41.9 (hour 1) -> 44.3 (hour 10); pinball 11.99 -> 12.83; coverage 0.80 -> 0.78;
+direction Brier 0.399 -> 0.423 (`outputs/validation/score/score_by_horizon.csv`).
 
 ## Rolling-window validation (8 weekly windows, each trained only on labels usable at its start)
 One month is a noisy yardstick, so changes were judged on 8 weekly windows (`uv run scripts/run_rolling.py`).
@@ -54,11 +55,11 @@ How much is real skill? Against trivial forecasts on the same windows: p50 MAE 3
 persistence = the baseline method); interval pinball 19 % better than constant quantiles around spot; spike Brier 14 % better than
 constant rates; direction Brier 9 % better than constant shares. Tree size, seasonal same-time-of-day features, recency weighting and
 shrinking p50 toward spot gave no consistent gain; extra-trees + 6 seeds gave a small one (MAE and direction better in 6/8 windows).
+The full list of experiments and numbers is in `EXPERIMENTS.md`.
 
 ## Caveats
 - Spike probabilities are not perfectly calibrated: September had more high spikes (12 %) than the training summer
   (8 %), so low-probability bins under-predict. The final model also learns from September.
-- Direction improves the Brier score only moderately (0.415 vs 0.451): "none" is almost never observed (0.3 %).
-- Tried without benefit: recency weighting (half-life 30/60/120 d), predicting the price level instead of the spread,
-  larger trees. Validation covers one month; differences of ~1 EUR/MWh MAE between variants are within noise.
+- Direction improves the Brier score only moderately (0.412 vs 0.451): "none" is almost never observed (0.3 %).
+- Tried without benefit: see `EXPERIMENTS.md`. Differences of ~1 EUR/MWh MAE between variants are within noise.
 - The final run could not be scored locally (test actuals are held by the organiser).
