@@ -14,3 +14,12 @@ __pycache__/
 node_modules/
 web/dist/
 web/public/data/
+
+# API keys and local secrets (e.g. a Fingrid or ENTSO-E key): never commit
+.secrets/
+.env
+.env.*
+*.env
+# model files and archives
+*.pkl
+*.zip

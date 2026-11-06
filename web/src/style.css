@@ -12,7 +12,7 @@ header h1 { font-size:18px; margin:0; flex:1; min-width:220px; }
 .tabs button, .nav button { border:1px solid var(--line); background:var(--card); color:var(--ink); padding:6px 12px; border-radius:8px; cursor:pointer; }
 .tabs button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
 .controls { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-.controls input[type=date] { padding:6px 8px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--ink); }
+.controls select, .controls input[type=date] { padding:6px 8px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--ink); }
 .controls input[type=range] { flex:1; min-width:140px; }
 .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; }
 .kpi { border:1px solid var(--line); border-radius:8px; padding:8px 12px; }

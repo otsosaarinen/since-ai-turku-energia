@@ -15,7 +15,8 @@ const HELP = {
 const FI = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Helsinki", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 const fiParts = (t) => Object.fromEntries(FI.formatToParts(new Date(t)).map((p) => [p.type, p.value]));
 const hhmm = (t) => { const p = fiParts(t); return `${p.hour}:${p.minute}`; };
-const mdOf = (t) => { const p = fiParts(t); return `${p.day}.${p.month}.`; };
+const mdOf = (t) => { const p = fiParts(t); return `${p.day}/${p.month}/${p.year}`; };   // dd/mm/yyyy
+const isoDayToFi = (d) => `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`;
 const dayOf = (t) => { const p = fiParts(t); return `${p.year}-${p.month}-${p.day}`; };
 
 function useData(name) {
@@ -51,7 +52,7 @@ export default function App() {
       const k = dayOf(r.forecast_origin_utc); const e = m.get(k) || { n: 0, ae: 0, in: 0 };
       e.n++; e.ae += Math.abs(r.p50 - r.actual_imbalance_price); e.in += r.actual_imbalance_price >= r.p10 && r.actual_imbalance_price <= r.p90 ? 1 : 0; m.set(k, e);
     }
-    return [...m].map(([day, e]) => ({ day: day.slice(8) + "." + day.slice(5, 7) + ".", mae: +(e.ae / e.n).toFixed(1), cov: +(e.in / e.n * 100).toFixed(0) }));
+    return [...m].map(([day, e]) => ({ day: day.slice(8) + "/" + day.slice(5, 7), mae: +(e.ae / e.n).toFixed(1), cov: +(e.in / e.n * 100).toFixed(0) }));
   }, [ix, d]);
 
   const actualAt = useMemo(() => {
@@ -116,14 +117,15 @@ export default function App() {
             <div className="controls nav">
               <button onClick={() => step(-24)}>◀ −1 day</button>
               <button onClick={() => step(-1)}>◀ −1 h</button>
-              <input type="date" value={dayOf(origin)} min={days[0]} max={days[days.length - 1]} aria-label="date"
-                onChange={(e) => { const o = ix.origins.find((x) => dayOf(x) === e.target.value); if (o) setOrigin(o); }} />
+              <select aria-label="date" value={dayOf(origin)} onChange={(e) => { const o = ix.origins.find((x) => dayOf(x) === e.target.value); if (o) setOrigin(o); }}>
+                {days.map((dd) => <option key={dd} value={dd}>{isoDayToFi(dd)}</option>)}
+              </select>
               <input type="range" aria-label="whole period" min={0} max={ix.origins.length - 1} value={pos} onChange={(e) => setOrigin(ix.origins[+e.target.value])} />
               <b data-testid="when">{mdOf(origin)} {hhmm(origin)}</b>
               <button onClick={() => step(1)}>+1 h ▶</button>
               <button onClick={() => step(24)}>+1 day ▶</button>
             </div>
-            <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>The bar covers the whole period ({mdOf(ix.origins[0])} – {mdOf(ix.origins[ix.origins.length - 1])}); the date box jumps to a day.</div>
+            <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>The bar covers the whole period ({mdOf(ix.origins[0])} – {mdOf(ix.origins[ix.origins.length - 1])}); the date list jumps to a day.</div>
           </div>
           <div className="card"><h2>Summary</h2><div className="msg">{summary}</div></div>
           <div className="kpis card">
@@ -177,7 +179,7 @@ export default function App() {
           <div className="card">
             <h2>What drives this forecast</h2>
             <ol className="drivers">{drivers.map((x) => <li key={x}><b>{x.replaceAll("_", " ")}</b> <span className="muted">— {HELP[x] || ""}</span></li>)}</ol>
-            <div className="muted">Forecast made at {dayOf(origin)} {hhmm(origin)} Finnish time, using only data published by that time.</div>
+            <div className="muted">Forecast made at {mdOf(origin)} {hhmm(origin)} Finnish time, using only data published by that time.</div>
           </div>
           {hasAct && (
             <div className="card">

@@ -24,14 +24,48 @@
 5. **Explainability.** `top_drivers` = the three feature groups with the largest SHAP contribution to p50 for that row;
    `data_cutoff_utc` = latest `first_usable_origin_utc` among the data used.
 
-## Validation (7 Sep – 4 Oct 2026; training only on data/labels usable at 2026-09-06T21:00Z)
-| Metric | Baseline | Model |
-|---|---|---|
-| MAE p50 | 66.20 | 43.21 |
-| Mean pinball p10/p90 | 24.18 | 12.42 |
-| P10–P90 coverage | 0.683 | 0.787 |
-| Brier spikes (mean) | 0.1132 | 0.0967 |
-| Brier direction (3-class) | 0.4509 | 0.4121 |
+## Validation versus test (terms used in this report)
+- **Test period (5 Oct – 1 Nov):** the real submission. The organisers hold the real prices and score `forecast_backtest.csv`; we never see them.
+- **Validation month (7 Sep – 4 Oct):** a practice run of the same task on a month where we do have the real prices
+  (`actuals_validation.csv`). The model is trained only on data and labels that were public at 7 Sep, forecasts every hour of the month
+  without having seen its prices, and is then scored against what really happened with the organisers' `score.py`.
+  It is the only way to tell whether a change to the model helps.
+- **The final model also trains on the validation weeks** (allowed: they are inside the 1 Jun – 4 Oct training window), so it cannot be
+  scored fairly on that month; the validation run therefore uses a separate model that stops at 6 Sep.
+- **Both use the availability rule:** at every origin only rows with `first_usable_origin_utc <= origin` are visible, even though the
+  data file contains the whole test month.
+- **Points:** each of the four automatic criteria earns `weight x clip((baseline - ours) / (baseline - best team), 0, 1)` (weights 30, 20,
+  20, 10); the best team's score is unknown to us, so points cannot be computed in advance. The jury scores reasoning (20 %) and the
+  situational view (Level 2).
+
+## How the current model is trained, and why
+1. **Training examples.** One example = a past forecast origin (full hour) and one of its 40 target quarter-hours: about 150 features known
+   at that hour (built from the availability-filtered window) plus the real outcome (price, direction, spike). Only origins whose 40
+   outcomes were all published by the cut-off are used (final model: 2,966 origins, 118,640 rows, June to 4 Oct).
+2. **Target = imbalance price minus the spot price of that quarter-hour.** The price is built around spot (above it in up-regulation,
+   below in down-regulation); the level target was worse (MAE 45.9 vs 44.7).
+3. **Six LightGBM models:** quantile p10, p50, p90; a 3-class direction model; two binary spike models (+-50 EUR/MWh vs spot).
+   LightGBM handles mixed tabular data and missing values, has a native quantile loss and gives SHAP explanations.
+4. **Small trees, extra-trees mode (8 leaves).** The signal is weak and noisy, so strong regularisation beats flexibility
+   (16 leaves was worse in 0/8 windows on pinball; extra-trees was better in 6/8 on MAE and direction).
+5. **Number of boosting rounds from a time-ordered hold-out:** the last 14 days before the cut-off, with a 10 h gap so no training
+   target overlaps it; training stops when the hold-out error stops improving.
+6. **Refit on all data with that number of rounds, 6 random seeds averaged** (reduces random variation).
+7. **Interval calibration:** on the same hold-out, p10 and p90 are shifted so each is crossed about 10 % of the time; raw coverage was
+   0.64 and is now 0.79 (target about 0.80).
+8. **Post-processing:** sorted quantiles, direction probabilities sum to 1, spike probabilities scaled so high + low <= 1.
+
+## Result of the organisers' `score.py` on the validation month
+| Metric | Baseline | Model | Better by |
+|---|---|---|---|
+| MAE p50 | 66.20 | 43.21 | 35 % |
+| Mean pinball p10/p90 (p10 8.01, p90 16.82) | 24.18 | 12.42 | 49 % |
+| P10–P90 coverage (target about 0.80) | 0.683 | 0.787 | – |
+| Spike Brier (high 0.1015, low 0.0918) | 0.1132 | 0.0967 | 15 % |
+| Direction Brier (3-class) | 0.4509 | 0.4121 | 9 % |
+
+## Validation by forecast hour (7 Sep – 4 Oct 2026; training only on data/labels usable at 2026-09-06T21:00Z)
+Overall scores are in the table above.
 
 By horizon (model): MAE 41.9 (hour 1) -> 44.3 (hour 10); pinball 11.99 -> 12.83; coverage 0.80 -> 0.78;
 direction Brier 0.399 -> 0.423 (`outputs/validation/score/score_by_horizon.csv`).

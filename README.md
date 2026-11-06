@@ -10,7 +10,7 @@ Every feature is built only from rows with `first_usable_origin_utc <= origin`.
 - **Validation month (7 Sep - 4 Oct), baseline vs model:** MAE 66.20 vs 43.21, pinball 24.18 vs 12.42, coverage 0.683 vs 0.787,
   spike Brier 0.1132 vs 0.0967, direction Brier 0.4509 vs 0.4121.
 - **8 rolling weekly windows (mean):** MAE 37.5, pinball 9.88, coverage 0.78, spike 0.0937, direction 0.4173.
-- Details and reasoning: `REPORT.md`. Every experiment with numbers: `EXPERIMENTS.md`. Data sources and licences: `SOURCES.md`.
+- What validation and test mean, how the model is trained and why, how points work: `REPORT.md`. Every experiment with numbers: `EXPERIMENTS.md`. Data sources and licences: `SOURCES.md`.
 
 ## Setup
 Requires [uv](https://docs.astral.sh/uv/) and, for the viewer, Node 20+.
@@ -43,8 +43,8 @@ All settings (periods, seed, number of seeds, LightGBM parameters) are in `confi
 
 ## Look at the forecasts
 ```bash
-uv run scripts/export_web_data.py        # forecast CSVs -> JSON for the viewer (re-run after a new forecast)
-cd web && npm install && npm run dev     # open http://localhost:5173 (Finnish time, date bar over the whole period)
+./scripts/start_web.sh                   # one command: refreshes the viewer data, then starts it at http://localhost:5173
+# (manual equivalent: uv run scripts/export_web_data.py && cd web && npm install && npm run dev)
 cd web && npx vitest run                 # viewer test
 uv run scripts/show_origin.py 2026-09-20T09:00   # one validation origin in the terminal (UTC)
 ```
