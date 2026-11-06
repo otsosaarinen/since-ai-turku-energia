@@ -14,26 +14,28 @@ Put the organiser files here (not in git): `starter_package_v1/` (unzipped, read
 
 ## Run
 ```bash
-uv run pytest -q                              # availability / leakage tests (20)
+uv run pytest -q                              # availability / leakage tests (21)
 # 1. reproduce the organiser baseline on the validation period (writes outputs/baseline/validation)
 uv run python -c "from src.baseline import *; run_validation_baseline('starter_package_v1','data','outputs/baseline/validation')"
 cd outputs/baseline/validation && python -I ../../../starter_package_v1/score.py --submission forecast_backtest.csv \
   --actuals ../../../data/actuals_validation.csv --spike-margin 50 --output-dir score && cd ../../..
 # 2. validation: train on data usable at 2026-09-06T21:00Z, forecast 7 Sep-4 Oct, score vs baseline
 uv run scripts/run_validation.py
-# 3. final: train up to the 4 Oct cut-off, forecast the 673 test origins, run the validator
+# 3. rolling validation: 8 weekly windows (10 Aug-4 Oct), compare variants with --ref TAG
+uv run scripts/run_rolling.py --tag mytag
+# 4. final: train up to the 4 Oct cut-off, forecast the 673 test origins, run the validator
 uv run scripts/run_final.py                   # -> outputs/final/forecast_backtest.csv
 python starter_package_v1/validate_submission.py --backtest outputs/final/forecast_backtest.csv \
   --origins starter_package_v1/forecast_origins.csv
 ```
 Outputs: `outputs/validation/{forecast_backtest,backtest_vs_actual}.csv`, `outputs/validation/score/`
 (`score_summary.md`, `score_by_horizon.csv`), `outputs/final/forecast_backtest.csv`.
-All settings (periods, seed, LightGBM parameters) are in `configs/default.yaml`; seeds are fixed.
+All settings (periods, seed, 6 seeds, extra_trees, LightGBM parameters) are in `configs/default.yaml`; seeds are fixed.
 `scripts/train_cpu.sbatch` is a (not yet tested) LUMI-C Slurm job running the final step.
 
 ## Layout
 `src/availability.py` availability filter | `features.py` features | `train.py` / `predict.py` models |
-`evaluate.py` validator/scorer wrappers | `exports.py` frontend CSVs | `baseline.py` organiser baseline | `tests/`.
+`evaluate.py` validator/scorer wrappers | `exports.py` backtest_vs_actual CSV for the viewers | `baseline.py` organiser baseline | `tests/`.
 
 ## Look at the forecasts
 ```bash
@@ -45,4 +47,5 @@ uv run --group app streamlit run app/app.py           # small local web viewer w
 ```bash
 uv run scripts/export_web_data.py        # CSV -> JSON for the viewer (re-run after new forecasts)
 cd web && npm install && npm run dev     # open http://localhost:5173
+cd web && npx vitest run                 # viewer test
 ```

@@ -26,14 +26,34 @@
 ## Validation (7 Sep – 4 Oct 2026; training only on data/labels usable at 2026-09-06T21:00Z)
 | Metric | Baseline | Model |
 |---|---|---|
-| MAE p50 | 66.20 | 43.60 |
-| Mean pinball p10/p90 | 24.18 | 12.34 |
-| P10–P90 coverage | 0.683 | 0.805 |
-| Brier spikes (mean) | 0.1132 | 0.0965 |
-| Brier direction (3-class) | 0.4509 | 0.4149 |
+| MAE p50 | 66.20 | 43.21 |
+| Mean pinball p10/p90 | 24.18 | 12.42 |
+| P10–P90 coverage | 0.683 | 0.787 |
+| Brier spikes (mean) | 0.1132 | 0.0967 |
+| Brier direction (3-class) | 0.4509 | 0.4121 |
 
 By horizon (model): MAE 42.3 (hour 1) -> 44.7 (hour 10); pinball 11.98 -> 12.69; coverage 0.82 -> 0.80
 (`outputs/validation/score/score_by_horizon.csv`).
+
+## Rolling-window validation (8 weekly windows, each trained only on labels usable at its start)
+One month is a noisy yardstick, so changes were judged on 8 weekly windows (`uv run scripts/run_rolling.py`).
+
+| Window start (Finnish) | MAE | Pinball | Coverage | Brier spikes | Brier direction |
+|---|---|---|---|---|---|
+| 10.08. | 19.1 | 4.44 | 0.83 | 0.0333 | 0.4148 |
+| 17.08. | 43.0 | 11.34 | 0.64 | 0.1298 | 0.4718 |
+| 24.08. | 32.7 | 7.17 | 0.76 | 0.1032 | 0.4297 |
+| 31.08. | 32.2 | 6.80 | 0.80 | 0.0975 | 0.3740 |
+| 07.09. | 48.5 | 15.75 | 0.81 | 0.0817 | 0.4189 |
+| 14.09. | 43.0 | 13.41 | 0.79 | 0.0799 | 0.3773 |
+| 21.09. | 48.1 | 11.09 | 0.77 | 0.1337 | 0.4892 |
+| 28.09. | 33.7 | 9.03 | 0.85 | 0.0903 | 0.3627 |
+| **mean** | **37.5** | **9.88** | **0.78** | **0.0937** | **0.4173** |
+
+How much is real skill? Against trivial forecasts on the same windows: p50 MAE 37.5 vs 38.7 for "spot + typical spread" (54.3 for
+persistence = the baseline method); interval pinball 19 % better than constant quantiles around spot; spike Brier 14 % better than
+constant rates; direction Brier 9 % better than constant shares. Tree size, seasonal same-time-of-day features, recency weighting and
+shrinking p50 toward spot gave no consistent gain; extra-trees + 6 seeds gave a small one (MAE and direction better in 6/8 windows).
 
 ## Caveats
 - Spike probabilities are not perfectly calibrated: September had more high spikes (12 %) than the training summer

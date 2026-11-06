@@ -19,23 +19,27 @@ full-hour origin; backtest 5 Oct–1 Nov 2026 = 673 origins x 40 = 26,920 rows -
 ## Layout / commands (uv project; `uv sync`, then `uv run ...`)
 - src/availability.py (fast index == organiser rows_available_at), features.py, train.py, predict.py, evaluate.py,
   exports.py (backtest_vs_actual), baseline.py (ported organiser baseline).
-- configs/default.yaml: periods, seeds, LightGBM params. tests/: `uv run pytest -q` (20 tests: availability equivalence,
+- configs/default.yaml: periods, seeds, LightGBM params. tests/: `uv run pytest -q` (21 tests: availability equivalence,
   cut-off <= origin, features unchanged when future rows removed/corrupted, label cut-off).
 - `uv run scripts/run_validation.py [--tag X] [--set model.key=value]` -> outputs/X/ (forecast, score, backtest_vs_actual).
+- `uv run scripts/run_rolling.py [--tag X] [--ref TAG]` -> 8 weekly windows, cached features, outputs/rolling/.
+- Web tests: `cd web && npx vitest run` (1 test).
 - `uv run scripts/run_final.py` -> outputs/final/forecast_backtest.csv, runs validate_submission.py.
 - Organiser tools run via `python -I starter_package_v1/{validate_submission,score,make_templates}.py` (outputs elsewhere).
 - LightGBM on macOS needed `brew install libomp` (done).
 
 ## Model
 Target = imbalance - spot(target) ("spread"); p10/p50/p90 LightGBM quantile, multiclass direction (down/none/up),
-2 binary spike classifiers (+-50 vs spot). 3 seeds averaged, early-stopped rounds on a time-ordered inner split (last 14 d
+2 binary spike classifiers (+-50 vs spot). 6 seeds averaged (extra_trees, num_leaves 8), early-stopped rounds on a time-ordered inner split (last 14 d
 with 10 h embargo), refit on all; p10/p90 shifted by conformal offsets from the inner holdout (coverage 0.64 -> ~0.80).
 Post: sort quantiles, renormalise direction, scale spikes so high+low <= 1. top_drivers = grouped SHAP (pred_contrib) of p50.
 data_cutoff_utc = max first_usable among cells in the window (usually == origin).
 
 ## Findings (validation 7 Sep–4 Oct, baseline: MAE 66.20, pinball 24.18, cov 0.68, spike 0.1132, dir 0.4509)
 - Baseline reproduced exactly via src/baseline.py.
-- Current model ~ MAE 43.6, pinball 12.34, cov 0.805, spike 0.0965, dir 0.415.
+- Current model (extra_trees, 6 seeds) validation month: MAE 43.21, pinball 12.42, cov 0.787, spike 0.0967, dir 0.4121.
+- scripts/run_rolling.py = 8 weekly windows (mean MAE 37.5, pinball 9.88, spike 0.0937, dir 0.4173); frame cached; compare with --ref TAG.
+  Skill vs trivial: MAE only 1.1 better than spot+median spread; interval 19%, spike 14%, direction 9%. Hyperparams/seasonal feats/blending: no gain.
 - Spread autocorrelation ~0 beyond 1 h; constant "spot-12" gives MAE 43.7; oracle-direction gives 35.4 -> skill comes from
   day-ahead structure (spot, cons/wind/solar forecast changes) and direction, not recency. Error is flat across horizon.
 - Did NOT help: recency weighting (halflife 30/60/120 d), level target (worse MAE), bigger trees. Autumn has more high spikes
@@ -51,7 +55,7 @@ exports, README/SOURCES/REPORT, scripts/train_cpu.sbatch (untested, account plac
 Left: LUMI access (user deferred) (alerts feature was removed at user request), commit when user asks.
 
 ## Improvement ideas (user said keep in mind; ranked)
-1. Rolling-window validation (several weeks, expanding train) to trust comparisons. 2. Better direction forecasting
+1. (DONE: scripts/run_rolling.py) 2. Better direction forecasting
 (oracle direction would cut MAE ~44 -> ~35). 3. Direction-aware price model (up/down regime prices mixed by P(direction)).
 4. Spike probability calibration (base-rate shift). 5. Open-Meteo Single Runs only with publication delay (risky). 6. Jury 20 pts:
 slides/demo story matter as much as spike score.
