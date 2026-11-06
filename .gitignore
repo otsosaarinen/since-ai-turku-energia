@@ -1,0 +1,16 @@
+# Licensed / hackathon-only data: never commit
+starter_package_v1/
+data/
+baseline_output/
+outputs/
+*.parquet
+*.csv
+!configs/*.csv
+.venv/
+__pycache__/
+.ipynb_checkpoints/
+*.pyc
+.DS_Store
+node_modules/
+web/dist/
+web/public/data/
