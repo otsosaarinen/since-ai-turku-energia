@@ -25,8 +25,9 @@ PRESETS = {
                 "The imbalance price follows the live grid balance, so use the live sources, not only history.",
                 "Follow these steps exactly.",
                 "1) get_data spot_price_fi: the live Finland spot price. Use the PriceNoTax field (EUR/kWh, multiply "
-                "by 1000 for EUR/MWh); never PriceWithTax, imbalance prices carry no tax. Then get_data nordpool_price "
-                "with start = 24 hours ago and end = now for the realised spot of those hours. These live and "
+                "by 1000 for EUR/MWh, e.g. 0.00586 EUR/kWh = 5.86 EUR/MWh); never PriceWithTax, imbalance prices "
+                "carry no tax. Then get_data nordpool_price with start = 24 hours ago and end = now for the "
+                "realised spot of those hours. These live and "
                 "realised prices are the market's own level; do NOT use the published day-ahead hours.",
                 "2) get_data fingrid_imbalance_price with start = 5 hours ago and end = now (ISO8601 UTC): you get "
                 "about 20 quarter-hour prices.",

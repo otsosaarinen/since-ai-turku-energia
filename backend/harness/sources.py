@@ -209,21 +209,51 @@ def _read_body(url: str, headers: dict[str, str] | None) -> str:
     raise AssertionError("unreachable")  # the loop either returns or raises
 
 
+def _longest_list(root: Any) -> tuple[Any, Any] | None:
+    """(container, key) of the longest list longer than THIN_MIN_ROWS anywhere inside `root`, or None."""
+    best: tuple[int, Any, Any] | None = None
+    pending = [root]
+    while pending:
+        node = pending.pop()
+        children = node.items() if isinstance(node, dict) else enumerate(node)
+        for key, value in children:
+            if isinstance(value, list):
+                if len(value) > THIN_MIN_ROWS and (best is None or len(value) > best[0]):
+                    best = (len(value), node, key)
+                pending.append(value)
+            elif isinstance(value, dict):
+                pending.append(value)
+    return None if best is None else (best[1], best[2])
+
+
+def _thin(rows: list[Any]) -> list[Any]:
+    """Every second row, always keeping the last one so the time span stays the same."""
+    kept = rows[::2]
+    if kept[-1] is not rows[-1]:
+        kept.append(rows[-1])
+    return kept
+
+
 def _shorten(body: str) -> str:
-    """JSON is pretty-printed; a long `data` list is thinned (every second row) to fit MAX_CHARS, keeping the span."""
+    """JSON is pretty-printed and kept valid: the longest list anywhere in it is thinned until the text fits MAX_CHARS.
+
+    (The Elering price feed nests its lists as data.fi, data.ee, ...; cutting the text instead of thinning produced a
+    file that stopped mid-record, which Python could not load.) Only non-JSON bodies, or JSON with no long list,
+    are cut.
+    """
     try:
         parsed = json.loads(body)
     except ValueError:
         return body[:MAX_CHARS]
+    holder = {"value": parsed}  # lets a top-level list be replaced like any other
     text = json.dumps(parsed, indent=2)
-    while (
-        len(text) > MAX_CHARS
-        and isinstance(parsed, dict)
-        and isinstance(parsed.get("data"), list)
-        and len(parsed["data"]) > THIN_MIN_ROWS
-    ):
-        parsed["data"] = parsed["data"][::2]
-        text = json.dumps(parsed, indent=2)
+    while len(text) > MAX_CHARS:
+        longest = _longest_list(holder)
+        if longest is None:
+            break
+        container, key = longest
+        container[key] = _thin(container[key])
+        text = json.dumps(holder["value"], indent=2)
     return text[:MAX_CHARS]
 
 

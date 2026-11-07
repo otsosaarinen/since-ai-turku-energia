@@ -130,6 +130,21 @@ def test_long_data_lists_are_thinned_but_keep_the_span():
     assert kept[0]["t"] == 0 and kept[-1]["t"] > 1000
 
 
+def test_lists_nested_one_level_deeper_are_thinned_too_and_stay_valid_json():
+    # the shape of the Elering price feed: {"data": {"fi": [...], "ee": [...]}}; it used to be cut mid-record
+    quarter_hours = [{"timestamp": 1_800_000_000 + 900 * n, "price": 12.5 + n} for n in range(400)]
+    feed = {
+        "success": True,
+        "data": {"fi": quarter_hours, "ee": quarter_hours, "lv": quarter_hours, "lt": quarter_hours},
+    }
+    shaped = sources._shorten(json.dumps(feed))
+    assert len(shaped) <= sources.MAX_CHARS
+    data = json.loads(shaped)["data"]  # valid JSON, so the model's Python can load it
+    for series in data.values():
+        assert 8 < len(series) < 400
+        assert series[0]["timestamp"] == 1_800_000_000 and series[-1]["timestamp"] == 1_800_000_000 + 900 * 399
+
+
 def test_a_top_level_json_list_no_longer_breaks_shaping():
     big_list = [{"zone": n, "text": "x" * 50} for n in range(1000)]
     shaped = sources._shorten(json.dumps(big_list))

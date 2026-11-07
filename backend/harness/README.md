@@ -87,6 +87,8 @@ Keep the model small and local, and do not run the harness where you cannot affo
 
 - `memory.json` (kept when a forecast row moves over 3 % between runs, last 200 entries) is written but nothing reads it.
 - The `ollama` and `openrouter` providers and the interactive prompt in `agent.py` work only from the command line.
+- The saved data files hold the thinned data (every second row for long feeds), not the full response.
+- A small model (gemma E4B) often miscalculates or invents numbers when a step fails; a larger one helps (`HARNESS_MODEL_FILTER=E4B,12B` in `.env` lists it).
 - The imbalance prompt sets every hourly forecast to the latest spot price plus a spread, so the 24 hourly rows share one spot level.
   The published day-ahead prices for those hours are known and are deliberately not used (teammate's design, 7 Nov); worth revisiting.
 
@@ -111,3 +113,7 @@ the author is a teammate). Local changes, in order:
   that also holds inside one turn (the teammate's version only checked between turns; extra calls now get an error result);
   the imbalance prompt uses the live spot price (`spot_price_fi`, field `PriceNoTax`, never the taxed one) and the realised spot of the last 24 h;
   `nordpool_price` now really takes `start`/`end` (the prompt relied on it, but the URL had no placeholders; default window: 1 h back to 48 h ahead).
+- 8 Nov 2026, after the first real run: `sources._shorten` thinned only a list directly under `data`, but the Elering feed nests its lists
+  (`data.fi`, `data.ee`, ...), so long answers were cut at 20,000 characters and the saved data file was invalid JSON (the model's Python
+  could not load it and it then invented numbers). It now thins the longest list anywhere, keeps the last row and keeps the JSON valid.
+  The imbalance prompt got a worked unit example (0.00586 EUR/kWh = 5.86 EUR/MWh) after the small model got it wrong by 10x.

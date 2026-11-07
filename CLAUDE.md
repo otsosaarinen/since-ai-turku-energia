@@ -54,7 +54,7 @@ Run backend commands from `backend/` (`uv sync` first; macOS needs `brew install
 | Website data from outputs/ | `uv run scripts/export_web_data.py` -> `frontend/public/data/` |
 | Organiser tools | `uv run python -I starter_package_v1/{validate_submission,score,make_templates}.py` |
 
-- Current counts (8 Nov): 158 backend tests, 170 frontend tests, ruff and eslint clean. Update these when they change.
+- Current counts (8 Nov): 159 backend tests, 171 frontend tests, ruff and eslint clean. Update these when they change.
 - Do not run the training scripts just to check something; they are slow and overwrite outputs.
 
 ## Model (details in REPORT.md)

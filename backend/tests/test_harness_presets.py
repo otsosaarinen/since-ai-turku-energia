@@ -21,6 +21,7 @@ def test_every_get_data_source_in_a_prompt_exists(preset_id):
 def test_the_imbalance_prompt_uses_the_untaxed_spot_price():
     prompt = PRESETS["imbalance"]["prompt"]
     assert "PriceNoTax" in prompt and "never PriceWithTax" in prompt
+    assert "0.00586 EUR/kWh = 5.86 EUR/MWh" in prompt  # a worked unit example: the small model once got it wrong by 10x
 
 
 def test_the_realised_spot_window_is_a_window_the_source_understands():

@@ -2,6 +2,7 @@ import React from "react";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import HarnessPanel from "../src/features/harness/HarnessPanel";
+import { answerTickFormatter } from "../src/features/harness/components/AnswerChart";
 import { ReasoningTooltip } from "../src/features/harness/components/ReasoningTooltip";
 import { parseAnswerTable, splitAnswer, toChartPoints } from "../src/features/harness/lib/answerParsing";
 import { formatModelTime, parseModelTime } from "../src/features/harness/lib/modelTime";
@@ -186,4 +187,14 @@ test("while running the current step has a spinner and finished steps are struck
   expect(items[0].getAttribute("data-state")).toBe("done");
   expect(items[1].getAttribute("data-state")).toBe("active");
   expect(items[1].querySelector("svg.animate-spin")).toBeTruthy();
+});
+
+test("a forecast that spans days labels its time axis with the day, a short one with the clock only", () => {
+  const hour = 3_600_000;
+  const point = (ms: number) => ({ ms, value: 1, base: 1, width: 0, low: 1, high: 1, confidence: "", drivers: "" });
+  const start = Date.UTC(2026, 10, 7, 12);
+  const shortAnswer = answerTickFormatter([point(start), point(start + 24 * hour)]);
+  const longAnswer = answerTickFormatter([point(start), point(start + 10 * 24 * hour)]);
+  expect(shortAnswer(start)).toBe("14:00");  // 12:00 UTC is 14:00 in Finland
+  expect(longAnswer(start)).toBe("07/11 14:00");
 });
