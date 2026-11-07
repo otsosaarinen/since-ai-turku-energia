@@ -11,8 +11,8 @@ import { Area, CartesianGrid, ComposedChart, Legend, Line, ReferenceLine, Respon
 // The two ways of predicting. "harness" has no forecasts yet: when its two files (same format as validation.json / final.json)
 // appear in web/public/data/, the box switches the chart to them automatically.
 const METHODS = {
-  current: { title: "Machine-learning model", sub: "Gradient-boosted trees (LightGBM). Trained on Fingrid and ENTSO-E data from 1 June to 4 October.", files: { validation: "validation", final: "final" } },
-  harness: { title: "Harness prediction", sub: "A second way of predicting. It appears here when its forecasts are added.", files: { validation: "harness_validation", final: "harness_final" } },
+  current: { title: "Machine-learning model", sub: "LightGBM, trained on 1 June – 4 October.", files: { validation: "validation", final: "final" } },
+  harness: { title: "Harness prediction", sub: "A second method. Not connected yet.", files: { validation: "harness_validation", final: "harness_final" } },
 };
 // Input toggles of the current model. Each combination is a separately trained model variant computed by scripts/run_variants.py;
 // the key has one digit per toggle (1 = on, 0 = off), "111" is the normal model served by validation.json / final.json.
@@ -221,7 +221,7 @@ export default function App() {
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="font-display text-4xl font-bold uppercase leading-none tracking-wide">Imbalance price forecast<span className="text-brand">.</span></h1>
-          <p className="mt-1 text-sm text-muted-foreground">Turku Energia. The next 10 hours, quarter-hour by quarter-hour.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Since AI Hackathon 2026, Turku Energia challenge. The next 10 hours.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm text-muted-foreground">Period
@@ -354,7 +354,6 @@ export default function App() {
       <Card className="flex min-h-[26rem] flex-1 flex-col bg-white/95 p-4">
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <h2 className={cn(h2, "text-2xl")}>Price forecast.
-            <Info align="left" text="Orange: forecast. Blue: where the price should stay 8 times out of 10. Red: real price. Grey: forecast made 3 h earlier." />
           </h2>
           <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
             <Button size="sm" variant="outline" className={outlineBtn} onClick={() => step(-24)}>◀ 1 day</Button>
@@ -375,8 +374,7 @@ export default function App() {
         {method === "current" && (
           <aside className="flex w-56 shrink-0 flex-col gap-3 border-r border-grey-light pr-4" data-testid="toggles">
             <div className="text-sm text-muted-foreground">
-              <b className="font-medium text-foreground">Forecast inputs.</b> Fingrid publishes solar, wind and consumption forecasts the day before.
-              Switch one off and the chart shows a model that was trained without it, so you can see how much it matters.
+              <b className="font-medium text-foreground">Forecast inputs.</b> Switch one off to see a model trained without it.
             </div>
             {TOGGLES.map((t) => (
               <label key={t.id} className="flex cursor-pointer items-center gap-2 text-sm">
@@ -418,8 +416,7 @@ export default function App() {
         </div>
         </div>
         <p className="mt-1 text-xs text-muted-foreground">
-          Gap before the vertical line: real prices are published about 1 hour after each quarter-hour ends, so at {hhmm(origin)} the latest price the model could see
-          starts at {hhmm(iso(o0 - 75 * 60 * 1000))}. The forecast starts one hour blind. Times are Finnish time.
+          Real prices arrive about 1 hour late, so the forecast starts blind: at {hhmm(origin)} the latest known price is from {hhmm(iso(o0 - 75 * 60 * 1000))}. Finnish time.
         </p>
       </Card>
     </>

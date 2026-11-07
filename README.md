@@ -84,7 +84,7 @@ uv run scripts/show_origin.py 2026-09-20T09:00   # one validation origin in the 
 ```
 The viewer (`web/`, React + Recharts) is one screen without scrolling. It follows the Turku Energia graphic guidelines (white page, orange
 as the accent colour, blue and grey structure with WCAG AA contrast, bold condensed capital headlines, plain wording), uses Finnish time and
-dd/mm/yyyy, and has only three "i" tooltips (period buttons, key numbers, how to read the chart). What is on the screen, top to bottom:
+dd/mm/yyyy, and has only two "i" tooltips (period buttons, key numbers; the chart legend explains the lines). What is on the screen, top to bottom:
 - **Period buttons:** the validation month (with real prices) or the test forecast (without).
 - **Two method boxes:** **Machine-learning model** (this repo's LightGBM forecasts) and **Harness prediction** (a second method, not connected yet). The
   highlighted box decides what the chart shows. To connect the harness, add its forecasts as `web/public/data/harness_validation.json` and

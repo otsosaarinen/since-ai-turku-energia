@@ -61,7 +61,7 @@ vs spot). 8 leaves, extra-trees, 6 seeds, rounds from a time-ordered inner split
   decoration; forecast line deepened orange #C96A00; real prices red (design-system destructive); likely range blue #46BEDC; earlier forecast grey.
   Headlines: Fira Sans Extra Condensed, bold capitals ending with a full stop. Never text on plain orange, never black on orange. Do NOT build a logo
   from an orange bar + text (forbidden); ask the user for the official digital logo file if a logo is wanted.
-- Wording: plain language (no "p50", "in band"); only three `Info` tooltips (the user found many annoying); text areas have fixed heights so changing
+- Wording: plain language (no "p50", "in band"); only two `Info` tooltips (period, key numbers) (the user found many annoying); text areas have fixed heights so changing
   numbers never shift the chart. Design components were copied from a Lovable template (~/Downloads/d489a847-...; only the design system was used).
 
 ## Decisions and open questions
