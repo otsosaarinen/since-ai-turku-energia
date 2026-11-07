@@ -33,6 +33,7 @@ decisions. SOURCES.md = data, services, components, licences. configs/default.ya
 - `uv run scripts/run_validation.py [--tag X] [--set model.key=value]` -> validation month, scored vs the organisers' baseline, outputs/X/.
 - `uv run scripts/run_rolling.py [--tag X] [--ref TAG] [--set key=value ...]` -> 8 weekly windows; judge model changes here.
 - `uv run scripts/run_final.py` -> outputs/final/forecast_backtest.csv and runs the organiser validator.
+- `uv run scripts/exp_postproc.py` -> post-processing experiments on the 8 windows (section 7 of EXPERIMENTS.md).
 - `uv run scripts/run_variants.py` -> the 7 model variants behind the viewer's input switches (about 12 min).
 - Organiser tools: `uv run python -I starter_package_v1/{validate_submission,score,make_templates}.py`.
 - Viewer: `./scripts/start_web.sh` (http://localhost:5173). `scripts/export_web_data.py` writes web/public/data/{validation,final}.json from outputs/.
@@ -46,12 +47,12 @@ vs spot). 8 leaves, extra-trees, 6 seeds, rounds from a time-ordered inner split
 - Layout: one screen, no scrolling on large screens; wave background (light-blue wave + orange hill); title row, period buttons, two method boxes,
   a fixed-height summary strip (summary, drivers, number chips), then the chart centred and as large as possible with time controls above it
   and the input switches stacked vertically in a narrow column left of the chart (the user asked for this; no other left column). Do not define components inside `App` (it remounts the controls; a test guards this).
-- Methods: boxes "Current model" and "Harness prediction" (METHODS in App.jsx). Harness has no data yet: it reads
+- Methods: boxes "Machine-learning model" (was "Current model") and "Harness prediction" (METHODS in App.jsx). Harness has no data yet: it reads
   web/public/data/harness_{validation,final}.json (same format as validation.json) and shows "not connected yet" until they exist.
 - Input switches (TOGGLES in App.jsx, groups in src/features.py TOGGLE_GROUPS): 8 precomputed variants in web/public/data/variants/
   {validation,final}_<key>.json + index.json (key digits = solar, wind, consumption; 111 = normal model). Residual-load features are dropped whenever any
   group is off. The page keeps the old chart on screen and the chosen hour while a variant loads (no blink).
-- Fixed price axis: `yAxis` in App.jsx is computed once per loaded file (percentiles, rounded to 50 EUR/MWh; -50..250 for the current data) and
+- Fixed price axis: `yAxis` in App.jsx is computed once per loaded file (percentiles, rounded to 50 EUR/MWh; -50..350 for the current data; covers the 99.9th percentile of the forecast line so forecasts around 300 fit) and
   `allowDataOverflow` clips rare spikes; the user wants the axis numbers to stay put while playing (a test guards this).
 - Smooth time: position is fractional (`fpos`); the numeric time axis slides and neighbouring forecasts (and the forecasts made 3 h earlier) are blended;
   1 h / 1 day buttons glide; Play advances 1/3/10 forecast hours per second and stops at the end. Tests mock ResponsiveContainer so the chart renders.
@@ -83,4 +84,4 @@ vs spot). 8 leaves, extra-trees, 6 seeds, rounds from a time-ordered inner split
 - Variant JSON files exist locally (web/public/data/, about 74 MB, git-ignored).
 
 ## Next ideas (none started)
-Slides and demo script (the jury part is 20 points); learning-curve check; direction-aware price model; spike probability calibration; more direction features.
+Slides and demo script (the jury part is 20 points); learning-curve check; direction-aware price model; more direction features; spike probabilities from extra quantiles. Already tested, no gain: fixed p_none and spike base-rate shift (EXPERIMENTS.md section 7).

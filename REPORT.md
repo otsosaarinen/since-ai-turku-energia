@@ -123,7 +123,7 @@ shrinking p50 toward spot gave no consistent gain; extra-trees + 6 seeds gave a 
 The full list of experiments and numbers is in `EXPERIMENTS.md`.
 
 ## Caveats
-- Spike probabilities are not perfectly calibrated: September had more high spikes (12 %) than the training summer
+- Spike probabilities are not perfectly calibrated (a base-rate shift toward the last 14 days was tested and did not help reliably, `EXPERIMENTS.md` section 7): September had more high spikes (12 %) than the training summer
   (8 %), so low-probability bins under-predict. The final model also learns from September.
 - Direction improves the Brier score only moderately (0.412 vs 0.451): "none" is almost never observed (0.3 %).
 - Tried without benefit: see `EXPERIMENTS.md`. Differences of ~1 EUR/MWh MAE between variants are within noise.

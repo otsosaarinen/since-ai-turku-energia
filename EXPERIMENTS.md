@@ -80,7 +80,7 @@ Adopted model, 8-window mean: MAE 37.53, pinball 9.88, coverage 0.78, spike 0.09
 - **Learning-curve check (cheap, about 15 minutes, no new data):** rerun the 8 rolling windows training on only the last 50 %, 75 % and 100 % of each
   window's history. If scores do not improve with more data, older data from another price regime is unlikely to help either.
 - Direction-aware price model: price under up- and down-regulation modelled separately and mixed with the direction probability.
-- Calibrating the spike probabilities on held-out data (base-rate shift).
+- Spike probabilities from extra quantiles (p5, p25, p75, p95) blended with the classifier. (A simple base-rate shift was tested, see section 7: no gain.)
 - Extra direction features (mFRR activation trends over several scales, neighbour price gaps).
 
 ## 6. Input toggles: leaving out Fingrid's solar, wind and consumption forecasts (validation month)
@@ -106,3 +106,15 @@ differences of about 0.1 EUR/MWh are noise (rolling windows). The wind forecast 
 forecast the least. The model leans mostly on the spot price and recent prices: in the final test forecast the spot price is among the top
 three drivers of 95 % of the forecasts, the wind forecast of 52 % and the solar forecast of 0.5 %. This is also why real weather data (cloud
 cover, sunlight) is unlikely to add much; it was not tested because it is not in the data.
+
+## 7. Post-processing tests (8 rolling windows, `scripts/exp_postproc.py`, 7 Nov)
+
+Idea from an outside suggestion list. One model fit per window, variants applied to its output afterwards. Differences are variant minus current model.
+
+| Variant | Spike Brier | Direction Brier | Decision |
+|---|---|---|---|
+| Direction "none" probability fixed to its training share (0.11-0.16 %, not 0.3 %), up/down renormalised | 0.0000 | +0.00001 (5/8 better) | no gain; the model already predicts almost 0 for "none" |
+| Spike probabilities shifted toward the last 14 days' base rate, half strength | -0.0006 (4/8 better) | 0 | noise, not adopted |
+| Same, full strength | +0.0016 (4/8 better) | 0 | worse |
+
+Not tried: spike probabilities from extra quantiles, direction-aware mixture, Open-Meteo Single Runs (risk of an availability error and no time to validate).

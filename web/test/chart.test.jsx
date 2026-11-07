@@ -100,7 +100,7 @@ test("the price axis stays the same while time moves, even when prices there are
   const first = priceTicks(container);
   expect(first.length).toBeGreaterThanOrEqual(5);
   expect(first[0]).toBe("-50 €");
-  expect(first[first.length - 1]).toBe("250 €");
+  expect(first[first.length - 1]).toBe("350 €");
   for (const v of ["10.5", "100", "250", "400", "600"]) {                                  // different hours and in-between positions
     fireEvent.change(slider, { target: { value: v } });
     expect(priceTicks(container)).toEqual(first);

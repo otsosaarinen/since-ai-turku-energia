@@ -45,7 +45,7 @@ test("two method boxes: the active one is highlighted and switching changes what
     return { ok: true, json: async () => real(url) };
   });
   render(<App />);
-  const current = () => screen.getByRole("button", { name: /Current model/ });
+  const current = () => screen.getByRole("button", { name: /Machine-learning model/ });
   const harness = () => screen.getByRole("button", { name: /Harness prediction/ });
   await waitFor(() => expect(screen.getByTestId("when")).toBeTruthy(), { timeout: 15000 });
   expect(current().getAttribute("aria-pressed")).toBe("true");

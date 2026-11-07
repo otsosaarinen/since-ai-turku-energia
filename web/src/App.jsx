@@ -11,7 +11,7 @@ import { Area, CartesianGrid, ComposedChart, Legend, Line, ReferenceLine, Respon
 // The two ways of predicting. "harness" has no forecasts yet: when its two files (same format as validation.json / final.json)
 // appear in web/public/data/, the box switches the chart to them automatically.
 const METHODS = {
-  current: { title: "Current model", sub: "Our machine-learning model. Trained on Fingrid and ENTSO-E data from 1 June to 4 October.", files: { validation: "validation", final: "final" } },
+  current: { title: "Machine-learning model", sub: "Gradient-boosted trees (LightGBM). Trained on Fingrid and ENTSO-E data from 1 June to 4 October.", files: { validation: "validation", final: "final" } },
   harness: { title: "Harness prediction", sub: "A second way of predicting. It appears here when its forecasts are added.", files: { validation: "harness_validation", final: "harness_final" } },
 };
 // Input toggles of the current model. Each combination is a separately trained model variant computed by scripts/run_variants.py;
@@ -182,7 +182,7 @@ export default function App() {
   }, [ix, last, playing, animating]);                   // eslint-disable-line react-hooks/exhaustive-deps
   const rowCache = useMemo(() => new Map(), [ix]);
   // Fixed price axis for the whole period, so the numbers on the left never move while time moves or plays: from the 1st percentile of the
-  // low end to the 95th percentile of the high end of the likely range (97th for real prices), rounded outwards to steps of 50 EUR/MWh.
+  // low end to the 99.9th percentile of the forecast line, the 99th percentile of the high end of the likely range and the 97th for real prices, rounded outwards to steps of 50 EUR/MWh.
   // Rare larger values run off the chart (the tooltip still shows them).
   const yAxis = useMemo(() => {
     if (!d) return null;
@@ -190,7 +190,7 @@ export default function App() {
     const pick = (a, p) => (a.length ? a[Math.min(a.length - 1, Math.floor(p * (a.length - 1)))] : null);
     const real = col("actual_imbalance_price");
     const lows = [pick(col("p10"), 0.01), pick(real, 0.01)].filter((v) => v != null);
-    const highs = [pick(col("p90"), 0.95), pick(real, 0.97)].filter((v) => v != null);
+    const highs = [pick(col("p50"), 0.999), pick(col("p90"), 0.99), pick(real, 0.97)].filter((v) => v != null);
     const step = 50;
     const lo = Math.min(0, Math.floor(Math.min(...lows) / step) * step), hi = Math.max(step, Math.ceil(Math.max(...highs) / step) * step);
     const ticks = [];
@@ -225,7 +225,7 @@ export default function App() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm text-muted-foreground">Period
-            <Info align="right" text="Validation is a practice month with known answers: the model only used data published before 7 September, so you can compare its forecast with the real prices. The test forecast covers the month the organisers will score; its real prices are not known to us, so only the forecast is shown." />
+            <Info align="right" text="Validation: a practice month with known real prices. Test forecast: the month that will be scored; its prices are unknown." />
           </span>
           {Object.entries(SETS).map(([k, v]) => (
             <Button key={k} size="sm" variant={set === k ? "primary" : "outline"} className={set === k ? solidBtn : outlineBtn} onClick={() => setSet(k)}>{v.label}</Button>
@@ -333,9 +333,10 @@ export default function App() {
     <>
       {header}
       {/* one slim strip: what it means, the main drivers, the key numbers */}
-      <Card className="flex flex-wrap items-center gap-x-6 gap-y-3 border-l-4 border-l-brand bg-white/95 p-3 lg:h-28 lg:flex-nowrap lg:overflow-visible">
+      <Card className="flex flex-wrap items-center gap-x-6 gap-y-3 border-l-4 border-l-brand bg-white/95 p-3 lg:h-32 lg:flex-nowrap lg:overflow-visible">
         <div className="min-w-64 flex-1 lg:min-w-0">
-          <p className="line-clamp-1 leading-snug" title={dirText}><b className={cn(h2, "mr-1 text-base")}>Summary.</b>{dirText}</p>
+          <h2 className={cn(h2, "text-base")}>Summary.</h2>
+          <p className="line-clamp-1 leading-snug" title={dirText}>{dirText}</p>
           <p className="mt-1 line-clamp-1 leading-snug" title={priceText}>{priceText}</p>
           <p className="mt-1 line-clamp-2 text-sm leading-snug text-muted-foreground" title={driversText}>{driversText}</p>
         </div>
@@ -345,7 +346,7 @@ export default function App() {
           <Chip value={pct(upShare)} label="grid needs more power" />
           {hasAct && <Chip value={mae == null ? "–" : mae.toFixed(1)} label="average error, €/MWh" />}
           {hasAct && <Chip value={cov == null ? "–" : pct(cov)} label="real price in range" />}
-          <Info align="right" text="Price spikes: the highest chance, in any quarter-hour of the next 10 hours, that the price ends up more than 50 €/MWh above (high) or below (low) the day-ahead price. Grid needs more power: the average chance that the power system needs extra electricity, which pushes the price up. Average error and real price in range appear when the real prices are known: how far the forecast was from the real price, and how often the real price stayed inside the blue area (about 8 times out of 10 is the goal)." />
+          <Info align="right" text="Spike: chance the price ends up over 50 €/MWh above (high) or below (low) the day-ahead price. Error and range need real prices." />
         </div>
       </Card>
 
@@ -353,7 +354,7 @@ export default function App() {
       <Card className="flex min-h-[26rem] flex-1 flex-col bg-white/95 p-4">
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <h2 className={cn(h2, "text-2xl")}>Price forecast.
-            <Info align="left" text="Orange line: the most likely price in each quarter-hour. Blue area: the range the price should stay in, 8 times out of 10. Red line: the real price, when it is known. Grey dotted line: the forecast made 3 hours earlier. The vertical line marks the moment the forecast was made. The price axis is fixed for the whole period, so its numbers never move; rare very high prices run off the top of the chart, point at the line to see them." />
+            <Info align="left" text="Orange: forecast. Blue: where the price should stay 8 times out of 10. Red: real price. Grey: forecast made 3 h earlier." />
           </h2>
           <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
             <Button size="sm" variant="outline" className={outlineBtn} onClick={() => step(-24)}>◀ 1 day</Button>
@@ -373,7 +374,10 @@ export default function App() {
         <div className="mt-2 flex min-h-72 flex-1 gap-4">
         {method === "current" && (
           <aside className="flex w-56 shrink-0 flex-col gap-3 border-r border-grey-light pr-4" data-testid="toggles">
-            <span className="text-sm text-muted-foreground">Forecast inputs from Fingrid, published the day before:</span>
+            <div className="text-sm text-muted-foreground">
+              <b className="font-medium text-foreground">Forecast inputs.</b> Fingrid publishes solar, wind and consumption forecasts the day before.
+              Switch one off and the chart shows a model that was trained without it, so you can see how much it matters.
+            </div>
             {TOGGLES.map((t) => (
               <label key={t.id} className="flex cursor-pointer items-center gap-2 text-sm">
                 <button type="button" role="switch" aria-checked={on[t.id]} aria-label={t.label} onClick={() => setOn({ ...on, [t.id]: !on[t.id] })}

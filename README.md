@@ -69,6 +69,7 @@ It ends with `VALIDATION PASSED` and `Errors: 0`. The submission file is `output
 **Other commands**
 ```bash
 uv run scripts/run_variants.py         # the 7 model variants behind the viewer's input switches (about 12 min, optional)
+uv run scripts/exp_postproc.py         # post-processing tests (none probability, spike base-rate shift) on the rolling windows (about 3 min)
 uv run scripts/run_rolling.py --tag X  # 8 weekly validation windows (about 2 min); add --ref OTHER_TAG to compare with an earlier run
 uv run python -I starter_package_v1/validate_submission.py --backtest outputs/final/forecast_backtest.csv --origins starter_package_v1/forecast_origins.csv
 ```
@@ -85,17 +86,17 @@ The viewer (`web/`, React + Recharts) is one screen without scrolling. It follow
 as the accent colour, blue and grey structure with WCAG AA contrast, bold condensed capital headlines, plain wording), uses Finnish time and
 dd/mm/yyyy, and has only three "i" tooltips (period buttons, key numbers, how to read the chart). What is on the screen, top to bottom:
 - **Period buttons:** the validation month (with real prices) or the test forecast (without).
-- **Two method boxes:** **Current model** (this repo's LightGBM forecasts) and **Harness prediction** (a second method, not connected yet). The
+- **Two method boxes:** **Machine-learning model** (this repo's LightGBM forecasts) and **Harness prediction** (a second method, not connected yet). The
   highlighted box decides what the chart shows. To connect the harness, add its forecasts as `web/public/data/harness_validation.json` and
   `harness_final.json` in the same format as `validation.json` / `final.json` (`{name, hasActuals, cols, rows}`, see `src/exports.py`
   `web_payload`); until then its box shows a "not connected yet" message.
 - **Summary strip:** a plain-language summary, the main drivers and the key numbers (chance of a high and a low price spike, chance the grid needs
   more power and, when real prices are known, the average error and how often the real price stayed in the likely range).
 - **Chart (in the middle, as big as possible):** forecast, likely range (blue), real price (red), the forecast made 3 h earlier (grey) and a
-  "Forecast made" line. The price axis is fixed (-50 to 250 EUR/MWh, from the data's 1st to 95th percentile) so its numbers never move while time moves or plays;
+  "Forecast made" line. The price axis is fixed (-50 to 350 EUR/MWh, from the data: the forecast line's 99.9th percentile and the likely range's 99th) so its numbers never move while time moves or plays;
   rare larger values run off the top and show in the hover tooltip. Above it: 1 h / 1 day steps that glide smoothly, a date list, a bar over the whole period, a **Play** button (speeds 1x, 3x,
   10x forecast hours per second; stops at the end). The **input switches** are stacked in a column to the left of the chart.
-- **Input switches (Current model only):** turn Fingrid's day-ahead **solar**, **wind** and **consumption** forecasts on or off. The page cannot
+- **Input switches (Machine-learning model only):** turn Fingrid's day-ahead **solar**, **wind** and **consumption** forecasts on or off. The page cannot
   re-run the model, so each of the 8 combinations is a separately trained model computed beforehand with `uv run scripts/run_variants.py`
   (7 extra variants, about 12 minutes, files in `web/public/data/variants/`). A label shows the validation error of the chosen variant.
   Residual-load features combine all three forecasts, so they are removed whenever any switch is off. Real cloud or sunlight data is not in the model.
@@ -117,6 +118,6 @@ and open http://localhost:5173. `app/app.py` is an older, optional Streamlit vie
 - `src/availability.py` availability filter (fast index, same result as the organiser's `rows_available_at`)
 - `src/features.py` features per (origin, step) and the input groups the viewer can switch off | `src/train.py`, `src/predict.py` models |
   `src/evaluate.py` validator and scorer wrappers | `src/exports.py` viewer tables | `src/baseline.py` organiser baseline
-- `scripts/` `run_validation.py`, `run_rolling.py`, `run_final.py`, `run_variants.py`, `export_web_data.py`, `start_web.sh`, `show_origin.py`,
+- `scripts/` `run_validation.py`, `run_rolling.py`, `run_final.py`, `run_variants.py`, `exp_postproc.py`, `export_web_data.py`, `start_web.sh`, `show_origin.py`,
   `train_cpu.sbatch` (LUMI Slurm job for the final run; untested, LUMI is optional because local training takes about a minute)
 - `web/` React viewer (`web/src/design-system/` = Turku Energia design components) | `tests/` Python tests | `configs/default.yaml` all model settings
