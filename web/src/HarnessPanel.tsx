@@ -218,7 +218,7 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
 
   const models = info !== null && typeof info === "object" ? info.models : [];
   return (
-    <Card className="flex flex-1 flex-col gap-3 bg-white p-4 lg:min-h-0 lg:overflow-hidden">
+    <Card className="flex flex-1 flex-col gap-3 bg-white p-4">
       <h2 className="font-display text-2xl font-bold uppercase tracking-wide">Harness prediction.</h2>
       {info === null && <p className="text-muted-foreground">Looking for the harness server …</p>}
       {info === "offline" && (
@@ -234,8 +234,8 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
         </div>
       )}
       {info && info !== "offline" && info !== "outdated" && (
-        <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[22rem_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]">
-          <div className="flex min-h-0 flex-col gap-3">
+        <div className="grid gap-4 lg:grid-cols-[22rem_minmax(0,1fr)]">
+          <div className="flex flex-col gap-3">
             <p className="text-sm text-muted-foreground">An AI model fetches live data and makes a short forecast. A live demo, not the scored entry.</p>
             <div className="flex flex-col gap-1 text-sm">
               <span className="font-medium">What to forecast</span>
@@ -253,13 +253,13 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
             </div>
             {err && <p className="text-sm text-destructive" role="alert">{err}</p>}
           </div>
-          <div className="flex min-h-0 flex-col gap-3">
-            <div className={cn("flex min-h-0 flex-col", job && job.answer ? "lg:max-h-[30%]" : "lg:flex-1")}>
+          <div className="flex flex-col gap-3 lg:self-start">
+            <div className="flex flex-col">
               <div className="flex items-baseline justify-between gap-2">
                 <h3 className="font-display text-base font-bold uppercase tracking-wide">Progress.</h3>
                 <span className="text-sm text-muted-foreground" data-testid="harness-state">{stateText(job)}</span>
               </div>
-              <ol ref={logRef} data-testid="harness-log" className="mt-2 max-h-64 min-h-0 overflow-auto rounded-lg border border-grey-light bg-white p-3 text-xs lg:max-h-none lg:flex-1">
+              <ol ref={logRef} data-testid="harness-log" className="mt-2 rounded-lg border border-grey-light bg-white p-3 text-xs">
                 {steps.length === 0 && (
                   <li className="flex items-center gap-2 text-muted-foreground">{running ? <><Spinner /> Starting the model …</> : "Nothing yet."}</li>
                 )}
@@ -287,7 +287,7 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
               </ol>
             </div>
             {job && job.answer && (
-              <div className="min-h-0 lg:flex-1 lg:overflow-auto">
+              <div className="shrink-0">
                 <h3 className="font-display text-base font-bold uppercase tracking-wide">Forecast.</h3>
                 {points.length > 1 && <div className="mt-2 rounded-lg border border-grey-light bg-white p-3"><AnswerChart points={points} /></div>}
                 {points.length <= 1 && table && cols.length > 0 && (

@@ -206,13 +206,13 @@ export default function App() {
 
   // render helpers (plain functions, not inner components: inner components would remount the controls on every render)
   const shell = (children: React.ReactNode) => (
-    <main className="relative min-h-screen overflow-hidden bg-background font-sans text-foreground lg:h-screen">
+    <main className={cn("relative min-h-screen overflow-hidden bg-background font-sans text-foreground", method !== "harness" && "lg:h-screen")}>
       {/* the brand wave as a calm light-blue background */}
       <div className="pointer-events-none fixed inset-0 z-0" aria-hidden="true">
         <Hills tone="sky" className="opacity-60" />
         <Hills tone="primary" className="h-1/5 opacity-90" />
       </div>
-      <div className={cn("relative z-10 mx-auto flex min-h-screen w-full max-w-[1500px] flex-col gap-3 p-4 transition-opacity lg:h-screen", loading && "opacity-70")}>{children}</div>
+      <div className={cn("relative z-10 mx-auto flex min-h-screen w-full max-w-[1500px] flex-col gap-3 p-4 transition-opacity", method !== "harness" && "lg:h-screen", loading && "opacity-70")}>{children}</div>
     </main>
   );
   const header = (
