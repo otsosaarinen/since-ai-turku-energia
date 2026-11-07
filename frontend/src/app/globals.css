@@ -1,0 +1,77 @@
+@import "tailwindcss" source(none);
+@import "../design-system/the-reading-room-3066fa/styles.css";
+@source "../";
+
+/* App-level tokens on top of the design-system ones (design-system/.../styles.css has the semantic colours and the reasoning).
+   Fonts, per the guide: headlines in a bold condensed face (turkuenergia.fi uses Fira Sans Extra Condensed, a web stand-in
+   for Trade Gothic Bold Condensed), body in a neutral sans (Franklin Gothic Book, Libre Franklin as the web stand-in),
+   key figures in Century Schoolbook (Source Serif 4 as the web stand-in). */
+@theme inline {
+  --font-display: "Fira Sans Extra Condensed", "Trade Gothic Bold Condensed", "Arial Narrow", sans-serif;
+  --font-sans: "Franklin Gothic Book", "Libre Franklin", "Helvetica Neue", Arial, sans-serif;
+  --font-serif: "Century Schoolbook", "New Century Schoolbook", "Source Serif 4", Georgia, serif;
+  --color-navy: var(--navy);
+  --color-brand: var(--brand);
+  --color-bg-light: var(--bg-light);
+  --color-switch-off: var(--switch-off);
+}
+
+:root {
+  /* Guide: dark blue #0F4B73 for text and structure, box background #EAF7FB (Bg Light), brand orange #F59B00 for decoration only. */
+  --navy: #0f4b73;
+  --bg-light: #eaf7fb;
+  --brand: #f59b00;
+  /* Off position of a switch: the guide's grey, 4.1:1 on white and with a white thumb */
+  --switch-off: #7d7d7d;
+  /* Chart lines. The forecast orange is deepened (3.8:1 on white); the likely range is the guide's blue #46BEDC as a
+     tint, with darker edge lines because the tint alone is too faint to count as visible (3:1). */
+  --chart-forecast: #c96a00;
+  --chart-real: var(--destructive);
+  --chart-earlier: #7d7d7d;
+  --chart-range: #46bedc;
+  --chart-range-edge: #1e7ca3;
+  /* Opacity of the wave background (decoration; text on it still has to reach AA, the test checks that) */
+  --hills-sky-opacity: 0.6;
+  --hills-brand-opacity: 0.9;
+  color-scheme: light;
+}
+
+.dark {
+  --navy: #8ccbe6;
+  --bg-light: #173449;
+  --brand: #f59b00;
+  --switch-off: #6f8a9e;
+  --chart-forecast: #f59b00;
+  --chart-earlier: #93a9b9;
+  --chart-range: #46bedc;
+  --chart-range-edge: #46bedc;
+  /* The waves would glare on a dark page, so they are much fainter */
+  --hills-sky-opacity: 0.2;
+  --hills-brand-opacity: 0.3;
+  color-scheme: dark;
+}
+
+/* Recharts draws plain SVG; these rules give its axes and legend the theme's colours (no reload, no flash on a switch). */
+.recharts-cartesian-grid line {
+  stroke: var(--border);
+}
+.recharts-cartesian-axis-line,
+.recharts-cartesian-axis-tick-line {
+  stroke: var(--muted-foreground);
+}
+.recharts-cartesian-axis-tick-value {
+  fill: var(--muted-foreground) !important;
+}
+.recharts-legend-item-text {
+  color: var(--foreground) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

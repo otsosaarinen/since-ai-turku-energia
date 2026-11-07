@@ -1,0 +1,142 @@
+@import "tw-animate-css";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Turku Energia design tokens (Graafinen ohjeisto, Sep 2024, web pages pp. 48-49).
+   Rules behind the values:
+   - White page base. Orange is an accent, never the dominant colour: structure is grey and blue, so text meets WCAG 2.2 AA.
+   - Bright brand orange #F59B00 is decoration only (hills, full stops). Anything with white text on it uses #B46000 (4.55:1).
+     Never black text on orange.
+   - Light blue #B4DCE6, dark blue #0F4B73, grey #7D7D7D, light grey #E6E1DC and box background #EAF7FB come from the guide.
+   - Fonts are set in app/globals.css. Dark mode is not in the guide: it is derived from #0F4B73 (see .dark below).
+   - A contrast test (test/lib/contrast.test.ts) reads this file and fails if a pair used by the interface drops under AA.
+   Keep colours as hex so the test and the guide read the same numbers. */
+@theme inline {
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 4px);
+  --radius-xl: calc(var(--radius) + 10px);
+  --shadow-float: var(--float-shadow);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-strong: var(--primary-strong);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-sky: var(--sky);
+  --color-sky-foreground: var(--sky-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-soft: var(--destructive-soft);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
+:root {
+  --radius: 0.25rem;
+  --background: #ffffff;
+  --foreground: #17222c;
+  --card: #ffffff;
+  --card-foreground: #17222c;
+  --popover: #ffffff;
+  --popover-foreground: #17222c;
+  /* Orange surfaces that carry white text. Hover goes darker, never lighter. */
+  --primary: #b46000;
+  --primary-foreground: #ffffff;
+  --primary-strong: #8f4c00;
+  /* Light blue #B4DCE6 with dark blue #0F4B73 text */
+  --sky: #b4dce6;
+  --sky-foreground: #0f4b73;
+  --secondary: #b4dce6;
+  --secondary-foreground: #0f4b73;
+  --muted: #f1f5f7;
+  /* Darker than the guide's grey #7D7D7D (4.1:1), which is too light for small text on white. */
+  --muted-foreground: #566470;
+  /* Soft orange tint for "high risk" boxes, with deep brown text */
+  --accent: #fff1de;
+  --accent-foreground: #7a4100;
+  --success: #2e7d32;
+  --success-foreground: #ffffff;
+  --destructive: #c4262e;
+  --destructive-foreground: #ffffff;
+  --destructive-soft: #fdecec;
+  /* Light grey #E6E1DC is structure only (card edges). Controls use --input, which is dark enough to see (3:1). */
+  --border: #e6e1dc;
+  --input: #7d7d7d;
+  /* Focus ring in dark blue: 9:1 on white, visible on every surface */
+  --ring: #0f4b73;
+  --float-shadow: 0 2px 8px rgb(15 75 115 / 0.14);
+}
+
+/* Dark theme: not defined by the guide. Surfaces are deep blues derived from the guide's dark blue #0F4B73 (same hue,
+   far darker), text is an off-white with a blue tint, light blue #8CCBE6 replaces dark blue for text and links.
+   Orange keeps the same fill #B46000 with white text (4.55:1), so buttons look the same in both themes; only orange
+   used as a line or full stop on a dark surface is the bright brand #F59B00. Red and green are lightened only as far as
+   contrast needs, and then take dark text. */
+.dark {
+  --background: #0b1e2d;
+  --foreground: #edf3f7;
+  --card: #12293b;
+  --card-foreground: #edf3f7;
+  --popover: #12293b;
+  --popover-foreground: #edf3f7;
+  --primary: #b46000;
+  --primary-foreground: #ffffff;
+  --primary-strong: #8f4c00;
+  --sky: #1c4963;
+  --sky-foreground: #e3f3f9;
+  --secondary: #1c4963;
+  --secondary-foreground: #e3f3f9;
+  --muted: #173449;
+  --muted-foreground: #a8bdcc;
+  --accent: #3a2a12;
+  --accent-foreground: #ffc980;
+  --success: #6fcf7a;
+  --success-foreground: #0b1e2d;
+  --destructive: #ff8a86;
+  --destructive-foreground: #0b1e2d;
+  --destructive-soft: #3b1f2a;
+  --border: #2d4b61;
+  --input: #7f9bb0;
+  --ring: #8ccbe6;
+  --float-shadow: 0 2px 8px rgb(0 0 0 / 0.5);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  /* the page edge and the overscroll area follow the theme too */
+  html {
+    background-color: var(--background);
+  }
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+  }
+  /* Every keyboard-focusable element gets the same visible ring, also those without their own ring classes. */
+  :where(a, button, select, input, textarea, summary, [tabindex]):focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  code {
+    border-radius: var(--radius);
+    background-color: var(--muted);
+    padding: 0.1em 0.35em;
+    font-size: 0.9em;
+  }
+}

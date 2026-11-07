@@ -23,12 +23,13 @@
    Post-processing: sorted quantiles, renormalised direction probabilities, spike probabilities scaled so high+low <= 1.
 5. **Explainability.** `top_drivers` = the three feature groups with the largest SHAP contribution to p50 for that row;
    `data_cutoff_utc` = latest `first_usable_origin_utc` among the data used.
-6. **Situational view (web viewer, `web/`).** One screen: a plain-language summary and the main drivers, the chance of a high or low price
+6. **Situational view (web viewer, `frontend/`).** One screen: a plain-language summary and the main drivers, the chance of a high or low price
    spike and of the grid needing more power, and a chart of the forecast, its likely range, the real price and the forecast made 3 hours
    earlier. Time can be moved to any forecast of the period (bar, date list, 1 h / 1 day steps) or played forward smoothly, so the usefulness can be
    shown over time and not only live. Three switches turn Fingrid's solar, wind and consumption forecasts on and off (each combination is a
-   separately trained model, see "Input switches" below). A second prediction method ("Harness prediction", an AI model that runs Python on live open data; code in `harness/`, see
-   "Harness prediction" below) has a place in the viewer; it is not part of the scored submission.
+   separately trained model, see "Input switches" below).
+   A second prediction method ("Harness prediction", an AI model that runs Python on live open data; code in `backend/harness/`,
+   see "Harness prediction" below) has a place in the viewer; it is not part of the scored submission.
 
 ## Factors affecting the forecast
 How often each factor is among the three biggest drivers (SHAP) of a forecast, over all 26,920 rows of the test forecast:
@@ -102,7 +103,7 @@ By horizon (model): MAE 41.9 (hour 1) -> 44.3 (hour 10); pinball 11.99 -> 12.83;
 direction Brier 0.399 -> 0.423 (`outputs/validation/score/score_by_horizon.csv`).
 
 ## Rolling-window validation (8 weekly windows, each trained only on labels usable at its start)
-One month is a noisy yardstick, so changes were judged on 8 weekly windows (`uv run scripts/run_rolling.py`).
+One month is a noisy yardstick, so changes were judged on 8 weekly windows (`cd backend && uv run scripts/run_rolling.py`).
 
 | Window start (Finnish) | MAE | Pinball | Coverage | Brier spikes | Brier direction |
 |---|---|---|---|---|---|
@@ -123,14 +124,18 @@ shrinking p50 toward spot gave no consistent gain; extra-trees + 6 seeds gave a 
 The full list of experiments and numbers is in `EXPERIMENTS.md`.
 
 ## Harness prediction (second method, experimental)
-`harness/` holds an AI harness copied from another repo (see `SOURCES.md`): a local language model (gemma-4 E4B through the Llama app) can run Python and read live open data (Fingrid,
-Elering/Nord Pool day-ahead price, Statnett, Open-Meteo) and answers with a forecast table. It is **not** the submission and cannot be scored like it: it forecasts from the situation
-now (24 h / 7 d) and has no forecast origins or availability rule, so it cannot make the 673 backtest origins. Tests on 7 Nov 2026 (`EXPERIMENTS.md` section 8): the setup works, but a
-small local model produced weak forecasts (a straight line through five points that reached 495 EUR/MWh, and a day-ahead "forecast" built on invented load and production). We therefore present
-the LightGBM model as the entry and the harness as a live demo and a possible direction, and we say so openly.
+`backend/harness/` holds an AI harness copied from another repo (see `SOURCES.md`): a local language model (gemma-4 E4B through the Llama app)
+can run Python and read live open data (Fingrid, Elering/Nord Pool day-ahead price, Statnett, Open-Meteo) and answers with a forecast table.
+It is **not** the submission and cannot be scored like it: it forecasts from the situation now (24 h / 10 d)
+and has no forecast origins or availability rule, so it cannot make the 673 backtest origins.
+
+Tests on 7 Nov 2026 (`EXPERIMENTS.md` section 8): the setup works, but a small local model produced weak forecasts
+(a straight line through five points that reached 495 EUR/MWh, and a day-ahead "forecast" built on invented load and production).
+We therefore present the LightGBM model as the entry and the harness as a live demo and a possible direction, and we say so openly.
 
 ## Caveats
-- Spike probabilities are not perfectly calibrated (a base-rate shift toward the last 14 days was tested and did not help reliably, `EXPERIMENTS.md` section 7): September had more high spikes (12 %) than the training summer
+- Spike probabilities are not perfectly calibrated (a base-rate shift toward the last 14 days was tested and did not help reliably, `EXPERIMENTS.md` section 7):
+  September had more high spikes (12 %) than the training summer
   (8 %), so low-probability bins under-predict. The final model also learns from September.
 - Direction improves the Brier score only moderately (0.412 vs 0.451): "none" is almost never observed (0.3 %).
 - Tried without benefit: see `EXPERIMENTS.md`. Differences of ~1 EUR/MWh MAE between variants are within noise.

@@ -12,21 +12,25 @@ __pycache__/
 *.pyc
 .DS_Store
 node_modules/
-web/dist/
-web/public/data/
+frontend/dist/
+frontend/public/data/
 
 # API keys and local secrets (e.g. a Fingrid or ENTSO-E key): never commit
 .secrets/
 .env
 .env.*
 *.env
+!.env.example
+!*.env.example
 # model files and archives
 *.pkl
 *.zip
 .vercel/
 
 # harness: API keys and generated reports
-harness/key.txt
-harness/reports/
-harness/__pycache__/
-harness/answer*.txt
+backend/harness/reports/
+backend/harness/__pycache__/
+backend/harness/answer*.txt
+frontend/.next/
+frontend/next-env.d.ts
+frontend/*.tsbuildinfo

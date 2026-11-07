@@ -1,0 +1,42 @@
+[project]
+name = "imbalance-forecast"
+version = "0.1.0"
+description = "Since AI 2026 - Turku Energia: 10 h ahead Finnish imbalance price forecast"
+requires-python = ">=3.11"
+dependencies = [
+    "pandas>=2.2,<4",
+    "numpy>=1.26,<3",
+    "pyarrow>=14",
+    "lightgbm>=4.3",
+    "scikit-learn>=1.4",
+    "pyyaml>=6",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "ruff>=0.17.4",
+]
+harness = ["openai>=1.50", "scipy>=1.11", "statsmodels>=0.14"]   # optional AI demo in backend/harness
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.uv]
+package = true
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = ["starter_package_v1", "data", "outputs"]
+
+[tool.ruff.lint]
+# E/W pycodestyle, F pyflakes, I import order, B bugbear, UP modern syntax, C4 comprehensions, SIM simplifications
+select = ["E", "F", "W", "I", "B", "UP", "C4", "SIM"]

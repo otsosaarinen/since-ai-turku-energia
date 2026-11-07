@@ -3,10 +3,10 @@
 Everything we tried on the model, with the numbers, so nothing has to be re-run to know the answer.
 Lower is better for MAE, pinball and Brier. "Base" below means the model as it was before the final settings.
 
-- **Validation month** = 7 Sep – 4 Oct, trained only on data/labels usable at 2026-09-06T21:00Z (`scripts/run_validation.py`).
+- **Validation month** = 7 Sep – 4 Oct, trained only on data/labels usable at 2026-09-06T21:00Z (`backend/scripts/run_validation.py`).
   The organiser's baseline there: MAE 66.20, pinball 24.18, coverage 0.683, spike Brier 0.1132, direction Brier 0.4509.
 - **Rolling windows** = 8 weekly windows 10 Aug – 4 Oct, each trained only on labels usable at its start
-  (`scripts/run_rolling.py`). One month is noisy (weekly MAE ranges from 19 to 49), so decisions were made on these.
+  (`backend/scripts/run_rolling.py`). One month is noisy (weekly MAE ranges from 19 to 49), so decisions were made on these.
 
 ## 1. Single-month validation (early model)
 
@@ -73,7 +73,7 @@ Adopted model, 8-window mean: MAE 37.53, pinball 9.88, coverage 0.78, spike 0.09
   and solar forecasts are used instead.
 - **Cloud cover / sunlight switches on the website:** need real weather data, which is not in the package (Open-Meteo Single Runs would need the
   publication delay added); the switches therefore only show the effect of Fingrid's solar, wind and consumption forecasts (section 6).
-- **LUMI:** not needed (training takes about a minute locally). `scripts/train_cpu.sbatch` exists but is untested.
+- **LUMI:** not needed (training takes about a minute locally); the untested Slurm job file was removed.
 
 ## 5. Ideas not yet tried
 
@@ -85,7 +85,7 @@ Adopted model, 8-window mean: MAE 37.53, pinball 9.88, coverage 0.78, spike 0.09
 
 ## 6. Input toggles: leaving out Fingrid's solar, wind and consumption forecasts (validation month)
 
-`scripts/run_variants.py` trains the model without each combination of the three day-ahead forecast groups (same settings and seeds, trained only
+`backend/scripts/run_variants.py` trains the model without each combination of the three day-ahead forecast groups (same settings and seeds, trained only
 on data usable at 6 Sep). Residual-load features combine all three, so they are removed whenever any group is off. The web viewer shows these
 variants as three switches above the chart. Lower is better.
 
@@ -107,7 +107,7 @@ forecast the least. The model leans mostly on the spot price and recent prices: 
 three drivers of 95 % of the forecasts, the wind forecast of 52 % and the solar forecast of 0.5 %. This is also why real weather data (cloud
 cover, sunlight) is unlikely to add much; it was not tested because it is not in the data.
 
-## 7. Post-processing tests (8 rolling windows, `scripts/exp_postproc.py`, 7 Nov)
+## 7. Post-processing tests (8 rolling windows, `backend/scripts/exp_postproc.py`, 7 Nov)
 
 Idea from an outside suggestion list. One model fit per window, variants applied to its output afterwards. Differences are variant minus current model.
 
@@ -119,7 +119,7 @@ Idea from an outside suggestion list. One model fit per window, variants applied
 
 Not tried: spike probabilities from extra quantiles, direction-aware mixture, Open-Meteo Single Runs (risk of an availability error and no time to validate).
 
-## 8. Harness live tests (7 Nov 2026, `harness/`, gemma-4 E4B Q8_0 with 32k context through the Llama app)
+## 8. Harness live tests (7 Nov 2026, `backend/harness/`, gemma-4 E4B Q8_0 with 32k context through the Llama app)
 
 Not comparable with sections 1-7 (live forecasts, no backtest, no scoring). What was observed:
 
@@ -129,12 +129,14 @@ Not comparable with sections 1-7 (live forecasts, no backtest, no scoring). What
 | Finnish day-ahead price, next 24 h (no Fingrid key) | answered, but the table was cut off after 14 rows, started in the past, and rested on invented assumptions (nuclear 60 %, hydro 15 %, a made-up load curve) |
 | Finnish imbalance price every 2 h for 12 h (with Fingrid key) | Fingrid data was fetched (latest point 11:30Z), but the model fitted a line through five 15-minute points and projected 133 rising to 495 EUR/MWh; it ignored the day-ahead price it was told to use |
 
-| Same imbalance question through the website panel, gemma-4 E4B, 53 s (`harness/server.py`) | the model passed "5 hours ago" / "now" as the time window, Fingrid refused it twice, the model gave up at turn 4 and answered with confidence "Assumption" (low/high = value +-30), and its times were Unix seconds for the start of the day (already past). Fix: the server now gives the current UTC time and the ISO-timestamp rule in every prompt; not re-tested yet |
+| Same imbalance question through the website panel, gemma-4 E4B, 53 s (`backend/harness/server.py`, now split into several modules) | the model passed "5 hours ago" / "now" as the time window, Fingrid refused it twice, the model gave up at turn 4 and answered with confidence "Assumption" (low/high = value +-30), and its times were Unix seconds for the start of the day (already past). Fix: the server now gives the current UTC time and the ISO-timestamp rule in every prompt; not re-tested yet |
 | Day-ahead question through the website panel (E4B, 68 s, after the current-time fix) | the day-ahead feed was read correctly and the model used Python for the table, but it wrote the csv without a code fence (the panel then drew no chart; fixed: the table is found without a fence) and listed past hours (it started at 7 Nov 00:00 Finnish time and skipped hours); prompts now say "only hours later than the current time" |
 
-Reading: the imbalance price has almost no memory after an hour (autocorrelation 0.09 at 1 h, section 3), so a line through the latest points cannot work, and a 4B model chooses the
-simplest method. A prompt that forces "day-ahead price + typical spread" is the next thing to try; not done. A bigger model (gemma-4 12B) was not tried.
+Reading: the imbalance price has almost no memory after an hour (autocorrelation 0.09 at 1 h, section 3), so a line through the latest points cannot work,
+and a 4B model chooses the simplest method.
+A prompt that forces "day-ahead price + typical spread" is the next thing to try; not done. A bigger model (gemma-4 12B) was not tried.
 
-Change 8 Nov (`harness/server.py` PRESETS): the imbalance preset no longer forces "day-ahead price + typical spread only". The prompt now also pulls the live grid balance
-(`fingrid_surplus`, `fingrid_wind_gen`, `fingrid_consumption`, last 2 h) and moves the spread with it, so the run predicts from the harness's data sources and not only from recent
-history; the panel's one-line description says so. Not re-tested yet (needs the Llama app).
+Change 8 Nov (`backend/harness/presets.py`, the prompts): the imbalance preset no longer forces "day-ahead price + typical spread only".
+The prompt now also pulls the live grid balance (`fingrid_surplus`, `fingrid_wind_gen`, `fingrid_consumption`, last 2 h)
+and moves the spread with it, so the run predicts from the harness's data sources and not only from recent history;
+the panel's one-line description says so. Not re-tested yet (needs the Llama app).
