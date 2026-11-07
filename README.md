@@ -12,15 +12,48 @@ Every feature is built only from rows with `first_usable_origin_utc <= origin`.
 - **8 rolling weekly windows (mean):** MAE 37.5, pinball 9.88, coverage 0.78, spike 0.0937, direction 0.4173.
 - What validation and test mean, how the model is trained and why, how points work: `REPORT.md`. Every experiment with numbers: `EXPERIMENTS.md`. Data sources and licences: `SOURCES.md`.
 
-## Two ways to use this repo
-- **Only look at the forecasts (no training):** see "Look at the forecasts" below. You need Node.js and two ready-made files from the model owner.
-- **Reproduce everything, including training the model:** the repo contains **no data and no trained model**, because the data is licensed
-  (Nord Pool spot prices: hackathon use only, never commit or share) and models are rebuilt in about a minute. You train it yourself on your
-  own laptop (CPU only, no GPU needed) by following the steps below.
+## Pick what you want to do
+| I want to... | Go to | You need |
+|---|---|---|
+| **Just look at the forecasts on the website** | Part A (5 minutes) | Node.js, git, and the folder `web/public/data/` from the model owner |
+| **Train the model myself and reproduce the results** | Part B (about 15 minutes of work) | git, uv, the organisers' data package; on a Mac also `brew install libomp` |
 
-## Reproduce from scratch (you train the model yourself)
-Requirements: macOS or Linux, [git](https://git-scm.com), [uv](https://docs.astral.sh/uv/) (installs Python for you) and, for the viewer, Node.js 20+.
-On macOS also run `brew install libomp` once (LightGBM needs OpenMP).
+The repo contains **no data and no trained model**: the data is licensed (Nord Pool spot prices are hackathon-only and must never be committed or
+shared), and training only takes about a minute on a normal laptop (CPU, no GPU needed). That is why Part B trains the model on your own computer.
+
+## Part A: look at the forecasts on the website
+Works the same on macOS, Linux and Windows. Type the commands in a terminal (on Windows: PowerShell or the terminal inside VS Code).
+
+**1. Install Node.js** (version 20 or newer) from https://nodejs.org if `node --version` does not print a number. This also installs `npm`.
+
+**2. Get the code**
+```bash
+git clone https://github.com/otsosaarinen/since-ai-turku-energia.git
+cd since-ai-turku-energia
+```
+
+**3. Add the forecast files.** Ask the model owner for the folder `web/public/data/` (about 75 MB) and copy it into the repo so the files end up at
+`web/public/data/validation.json`, `web/public/data/final.json` and `web/public/data/variants/`. They are not in git, because the
+forecasts come from licensed data. Without `variants/` the website works, but the three input switches say "not computed yet".
+
+**4. Install and start the website** (the first command downloads the website's libraries, only needed once and takes about a minute)
+```bash
+cd web
+npm install
+npm run dev
+```
+**5. Open http://localhost:5173** in your browser. Stop the website with Ctrl+C in the terminal.
+
+Next time you only need `cd web` and `npm run dev`. On macOS and Linux, `./scripts/start_web.sh` from the repo folder does the same
+(and on the model owner's computer it also rebuilds the website's data from `outputs/` first). It does not work on Windows.
+
+Other website commands (run inside the `web/` folder): `npm test` (9 tests), `npm run typecheck` (TypeScript check), `npm run build` (production build).
+What the page shows is described under "What the website shows" further down.
+
+## Part B: train the model yourself
+Requirements: macOS or Linux, [git](https://git-scm.com), [uv](https://docs.astral.sh/uv/) (installs Python for you; install with
+`curl -LsSf https://astral.sh/uv/install.sh | sh`). On macOS also run `brew install libomp` once (LightGBM needs OpenMP).
+Node.js is only needed if you also want the website.
 
 **1. Get the code**
 ```bash
@@ -76,13 +109,11 @@ uv run python -I starter_package_v1/validate_submission.py --backtest outputs/fi
 Validation outputs: `outputs/validation/forecast_backtest.csv`, `backtest_vs_actual.csv`, `score/` (`score_summary.md`, `score_by_horizon.csv`).
 All settings (periods, seed, number of seeds, LightGBM parameters) are in `configs/default.yaml`.
 
-## Look at the forecasts (web viewer)
+## What the website shows
 ```bash
-./scripts/start_web.sh                           # starts the viewer at http://localhost:5173 (Ctrl+C stops it)
-cd web && npx vitest run                         # 9 viewer tests
-uv run scripts/show_origin.py 2026-09-20T09:00   # one validation origin in the terminal (UTC)
+uv run scripts/show_origin.py 2026-09-20T09:00   # (optional) one validation origin in the terminal instead of the website (UTC)
 ```
-The viewer (`web/`, React + Recharts) is one screen without scrolling. It follows the Turku Energia graphic guidelines (white page, orange
+The website (`web/`, React + TypeScript + Vite + Recharts) is one screen without scrolling. It follows the Turku Energia graphic guidelines (white page, orange
 as the accent colour, blue and grey structure with WCAG AA contrast, bold condensed capital headlines, plain wording), uses Finnish time and
 dd/mm/yyyy, and has only two "i" tooltips (period buttons, key numbers; the chart legend explains the lines). What is on the screen, top to bottom:
 - **Period buttons:** the validation month (with real prices) or the test forecast (without).
@@ -101,18 +132,9 @@ dd/mm/yyyy, and has only two "i" tooltips (period buttons, key numbers; the char
   (7 extra variants, about 12 minutes, files in `web/public/data/variants/`). A label shows the validation error of the chosen variant.
   Residual-load features combine all three forecasts, so they are removed whenever any switch is off. Real cloud or sunlight data is not in the model.
 
-**Data for the viewer.** `start_web.sh` rebuilds `web/public/data/validation.json` and `final.json` from `outputs/` when that exists (the model
-owner's machine); otherwise it uses the JSON files already in `web/public/data/`. All of `web/public/data/` is git-ignored (forecasts and real
-imbalance prices, no spot prices). **On another laptop (e.g. a teammate's):** `git clone`, copy the whole `web/public/data/` folder from the model
-owner (about 75 MB with `variants/`; without `variants/` the switches show "not computed yet") and run `./scripts/start_web.sh`. Only Node.js
-is needed; no Python, data or model.
-**On Windows** the `.sh` script does not run (double-clicking it only opens it in an editor). Use a terminal (PowerShell or the VS Code terminal) in the repo folder instead:
-```
-cd web
-npm install
-npm run dev
-```
-and open http://localhost:5173. `app/app.py` is an older, optional Streamlit viewer (`uv run --group app streamlit run app/app.py`).
+**Where the website's data comes from.** `web/public/data/` (git-ignored: forecasts and real imbalance prices, no spot prices) is created by
+`uv run scripts/export_web_data.py` from `outputs/` on the model owner's computer (`start_web.sh` calls it automatically), or copied from them
+(Part A, step 3). `app/app.py` is an older, optional Streamlit viewer (`uv run --group app streamlit run app/app.py`).
 
 ## Layout
 - `src/availability.py` availability filter (fast index, same result as the organiser's `rows_available_at`)

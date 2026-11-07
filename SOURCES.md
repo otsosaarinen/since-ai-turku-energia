@@ -11,7 +11,7 @@
 
 Software: Python, pandas (BSD-3), numpy (BSD-3), pyarrow (Apache-2.0), LightGBM (MIT), scikit-learn (BSD-3),
 PyYAML (MIT), pytest (MIT), uv (MIT/Apache-2.0), optional Streamlit (Apache-2.0) for the older viewer. Models are trained from scratch; no
-pretrained or third-party models. Web test tools: Vitest, jsdom, Testing Library (all MIT). No external data was added: the Fingrid history before
+pretrained or third-party models. TypeScript (Apache-2.0) for the web viewer. Web test tools: Vitest, jsdom, Testing Library (all MIT). No external data was added: the Fingrid history before
 1 June and weather data were considered and not used (see `EXPERIMENTS.md` section 4).
 
 ## Web viewer (`web/`)

@@ -43,16 +43,17 @@ Target = imbalance minus spot of the target quarter-hour. Six LightGBM models: q
 vs spot). 8 leaves, extra-trees, 6 seeds, rounds from a time-ordered inner split (14 d, 10 h embargo), p10/p90 shifted by conformal offsets.
 `model.drop_features` in the config leaves features out (used for the viewer switches). Near the ceiling of this data (EXPERIMENTS.md).
 
-## Web viewer (web/, React + Vite + Recharts + Tailwind 4; tests Vitest + jsdom)
+## Web viewer (web/, React + TypeScript + Vite + Recharts + Tailwind 4; tests Vitest + jsdom)
+- TypeScript (strict): `src/App.tsx`, `src/types.ts` (forecast file shapes), `src/main.tsx`, tests in `web/test/*.tsx`. Check types with `cd web && npm run typecheck`; `npm run build` type-checks first. Keep new code typed (no `any`).
 - Layout: one screen, no scrolling on large screens; wave background (light-blue wave + orange hill); title row, period buttons, two method boxes,
   a fixed-height summary strip (summary, drivers, number chips), then the chart centred and as large as possible with time controls above it
   and the input switches stacked vertically in a narrow column left of the chart (the user asked for this; no other left column). Do not define components inside `App` (it remounts the controls; a test guards this).
-- Methods: boxes "Machine-learning model" (was "Current model") and "Harness prediction" (METHODS in App.jsx). Harness has no data yet: it reads
+- Methods: boxes "Machine-learning model" (was "Current model") and "Harness prediction" (METHODS in App.tsx). Harness has no data yet: it reads
   web/public/data/harness_{validation,final}.json (same format as validation.json) and shows "not connected yet" until they exist.
-- Input switches (TOGGLES in App.jsx, groups in src/features.py TOGGLE_GROUPS): 8 precomputed variants in web/public/data/variants/
+- Input switches (TOGGLES in App.tsx, groups in src/features.py TOGGLE_GROUPS): 8 precomputed variants in web/public/data/variants/
   {validation,final}_<key>.json + index.json (key digits = solar, wind, consumption; 111 = normal model). Residual-load features are dropped whenever any
   group is off. The page keeps the old chart on screen and the chosen hour while a variant loads (no blink).
-- Fixed price axis: `yAxis` in App.jsx is computed once per loaded file (percentiles, rounded to 50 EUR/MWh; -50..350 for the current data; covers the 99.9th percentile of the forecast line so forecasts around 300 fit) and
+- Fixed price axis: `yAxis` in App.tsx is computed once per loaded file (percentiles, rounded to 50 EUR/MWh; -50..350 for the current data; covers the 99.9th percentile of the forecast line so forecasts around 300 fit) and
   `allowDataOverflow` clips rare spikes; the user wants the axis numbers to stay put while playing (a test guards this).
 - Smooth time: position is fractional (`fpos`); the numeric time axis slides and neighbouring forecasts (and the forecasts made 3 h earlier) are blended;
   1 h / 1 day buttons glide; Play advances 1/3/10 forecast hours per second and stops at the end. Tests mock ResponsiveContainer so the chart renders.

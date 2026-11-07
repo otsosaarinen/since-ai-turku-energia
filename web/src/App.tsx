@@ -1,5 +1,6 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Alert, AlertTitle, Button, Card, Hills, cn } from "@/design-system/the-reading-room-3066fa";
+import type { Cell, ChartPoint, MethodKey, NumKey, Payload, Row, SetKey, ToggleId, VariantIndex } from "./types";
 import { Area, CartesianGrid, ComposedChart, Legend, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -10,22 +11,22 @@ import { Area, CartesianGrid, ComposedChart, Legend, Line, ReferenceLine, Respon
 
 // The two ways of predicting. "harness" has no forecasts yet: when its two files (same format as validation.json / final.json)
 // appear in web/public/data/, the box switches the chart to them automatically.
-const METHODS = {
+const METHODS: Record<MethodKey, { title: string; sub: string; files: Record<SetKey, string> }> = {
   current: { title: "Machine-learning model", sub: "LightGBM, trained on 1 June – 4 October.", files: { validation: "validation", final: "final" } },
   harness: { title: "Harness prediction", sub: "A second method. Not connected yet.", files: { validation: "harness_validation", final: "harness_final" } },
 };
 // Input toggles of the current model. Each combination is a separately trained model variant computed by scripts/run_variants.py;
 // the key has one digit per toggle (1 = on, 0 = off), "111" is the normal model served by validation.json / final.json.
-const TOGGLES = [
+const TOGGLES: { id: ToggleId; label: string }[] = [
   { id: "solar", label: "Solar forecast" },
   { id: "wind", label: "Wind forecast" },
   { id: "consumption", label: "Consumption forecast" },
 ];
-const SETS = {
+const SETS: Record<SetKey, { label: string }> = {
   validation: { label: "Validation 7 Sep – 4 Oct" },
   final: { label: "Test forecast 5 Oct – 1 Nov" },
 };
-const HELP = {
+const HELP: Record<string, string> = {
   spot_price: "the day-ahead price of electricity", consumption_forecast_da: "the forecast of electricity consumption",
   wind_forecast_da: "the wind power forecast", solar_forecast_da: "the solar power forecast",
   residual_load_forecast: "the electricity demand left after wind and solar", latest_imbalance_price: "the latest imbalance prices",
@@ -37,12 +38,12 @@ const HELP = {
 };
 // Data is stored in UTC; everything shown on the page is Finnish time (Europe/Helsinki, incl. the 25 Oct clock change).
 const FI = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Helsinki", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
-const fiParts = (t) => Object.fromEntries(FI.formatToParts(new Date(t)).map((p) => [p.type, p.value]));
-const hhmm = (t) => { const p = fiParts(t); return `${p.hour}:${p.minute}`; };
-const mdOf = (t) => { const p = fiParts(t); return `${p.day}/${p.month}/${p.year}`; };   // dd/mm/yyyy
-const isoDayToFi = (d) => `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`;
-const dayOf = (t) => { const p = fiParts(t); return `${p.year}-${p.month}-${p.day}`; };
-const eur = (v) => (v == null ? "–" : `${v.toFixed(1)} €/MWh`);
+const fiParts = (t: number | string): Record<string, string> => Object.fromEntries(FI.formatToParts(new Date(t)).map((p) => [p.type, p.value]));
+const hhmm = (t: number | string) => { const p = fiParts(t); return `${p.hour}:${p.minute}`; };
+const mdOf = (t: number | string) => { const p = fiParts(t); return `${p.day}/${p.month}/${p.year}`; };   // dd/mm/yyyy
+const isoDayToFi = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`;
+const dayOf = (t: number | string) => { const p = fiParts(t); return `${p.year}-${p.month}-${p.day}`; };
+const eur = (v: number | null | undefined) => (v == null ? "–" : `${v.toFixed(1)} €/MWh`);
 
 // chart colours: deepened brand orange for the forecast (the plain orange is too light to read on white), red for the real prices
 // (easy to tell apart from the forecast), blue for the range, grey for the earlier forecast
@@ -51,10 +52,10 @@ const selectCls = "h-9 rounded-md border border-input bg-white px-3 text-sm text
 const solidBtn = "border-2 border-orange-fill bg-orange-fill text-white hover:bg-orange-fill/90";
 const outlineBtn = "border-2 border-navy bg-white text-navy hover:bg-bg-light";
 const h2 = "font-display font-bold uppercase tracking-wide";
-const EMPTY = new Map();
+const EMPTY = new Map<number, Row>();
 
 /** Small "i" button that explains something on hover, focus or tap. */
-function Info({ text, align = "center" }) {
+function Info({ text, align = "center" }: { text: string; align?: "left" | "right" | "center" }) {
   const id = useId();
   const pos = align === "left" ? "left-0" : align === "right" ? "right-0" : "left-1/2 -translate-x-1/2";
   return (
@@ -70,7 +71,7 @@ function Info({ text, align = "center" }) {
 }
 
 /** What you see when you point at the chart. */
-function ChartTip({ active, payload }) {
+function ChartTip({ active, payload }: { active?: boolean; payload?: { payload: ChartPoint }[] }) {
   if (!active || !payload || !payload.length) return null;
   const r = payload[0].payload;
   const real = r.realKnown ?? r.realLater;
@@ -87,7 +88,7 @@ function ChartTip({ active, payload }) {
   );
 }
 
-function Chip({ value, label }) {
+function Chip({ value, label }: { value: string; label: string }) {
   return (
     <div className="flex h-[4.25rem] w-28 shrink-0 flex-col items-center justify-center rounded-md bg-bg-light px-2 text-center">
       <div className="font-serif text-2xl font-light leading-none tabular-nums text-navy">{value}</div>
@@ -96,15 +97,15 @@ function Chip({ value, label }) {
   );
 }
 
-function useData(name) {
-  const [d, setD] = useState(null);
-  const [err, setErr] = useState(null);
+function useData(name: string) {
+  const [d, setD] = useState<Payload | null>(null);
+  const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     let cancelled = false;                       // ignore an answer that arrives after the choice changed again
     setLoading(true); setErr(null);              // the previous data stays on screen meanwhile (no blink)
     fetch(`/data/${name}.json`)
-      .then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
       .then((x) => { if (!cancelled) { setD(x); setLoading(false); } })
       .catch((e) => { if (!cancelled) { setErr(String(e)); setLoading(false); } });
     return () => { cancelled = true; };
@@ -112,21 +113,21 @@ function useData(name) {
   return { d, err, loading };
 }
 
-function index(d) {
-  const ci = Object.fromEntries(d.cols.map((c, i) => [c, i]));
-  const by = new Map();
-  for (const r of d.rows) { const o = r[ci.forecast_origin_utc]; if (!by.has(o)) by.set(o, []); by.get(o).push(r); }
-  const rowObj = (r) => Object.fromEntries(d.cols.map((c, i) => [c, r[i]]));
-  return { origins: [...by.keys()].sort(), get: (o) => (by.get(o) || []).map(rowObj) };
+function index(d: Payload) {
+  const ci: Record<string, number> = Object.fromEntries(d.cols.map((c, i) => [c, i]));
+  const by = new Map<string, Cell[][]>();
+  for (const r of d.rows) { const o = r[ci.forecast_origin_utc] as string; if (!by.has(o)) by.set(o, []); by.get(o)!.push(r); }
+  const rowObj = (r: Cell[]) => Object.fromEntries(d.cols.map((c, i) => [c, r[i]])) as unknown as Row;
+  return { origins: [...by.keys()].sort(), get: (o: string): Row[] => (by.get(o) || []).map(rowObj) };
 }
 
 export default function App() {
-  const [set, setSet] = useState("validation");
-  const [method, setMethod] = useState("current");
-  const [on, setOn] = useState({ solar: true, wind: true, consumption: true });
+  const [set, setSet] = useState<SetKey>("validation");
+  const [method, setMethod] = useState<MethodKey>("current");
+  const [on, setOn] = useState<Record<ToggleId, boolean>>({ solar: true, wind: true, consumption: true });
   const key = TOGGLES.map((t) => (on[t.id] ? "1" : "0")).join("");
   const variant = method === "current" && key !== "111";
-  const [vIndex, setVIndex] = useState(null);
+  const [vIndex, setVIndex] = useState<VariantIndex | null>(null);
   useEffect(() => { fetch("/data/variants/index.json").then((r) => (r.ok ? r.json() : null)).then(setVIndex).catch(() => setVIndex(null)); }, []);
   const { d, err, loading } = useData(variant ? `variants/${set}_${key}` : METHODS[method].files[set]);
   const ix = useMemo(() => (d ? index(d) : null), [d]);
@@ -142,22 +143,22 @@ export default function App() {
   speedRef.current = speed;
   const [animating, setAnimating] = useState(false);  // gliding towards targetRef after a button click
   const last = ix ? ix.origins.length - 1 : 0;
-  const clamp = (v) => Math.max(0, Math.min(last, v));
-  const apply = (v) => { fposRef.current = v; setFpos(v); };
-  const goTo = (i, glide) => {
+  const clamp = (v: number) => Math.max(0, Math.min(last, v));
+  const apply = (v: number) => { fposRef.current = v; setFpos(v); };
+  const goTo = (i: number, glide: boolean) => {
     const t = clamp(i);
     playingRef.current = false; setPlaying(false);
     targetRef.current = t;
     if (glide) setAnimating(true); else apply(t);
   };
-  const step = (k) => goTo(Math.round(targetRef.current) + k, true);
+  const step = (k: number) => goTo(Math.round(targetRef.current) + k, true);
   const togglePlay = () => {
     if (playingRef.current) { goTo(Math.round(fposRef.current), true); return; }
     if (fposRef.current >= last - 0.001) apply(0);
     playingRef.current = true; setPlaying(true);
   };
   const pos = ix ? Math.max(0, Math.min(last, Math.round(fpos))) : 0;
-  const lastOriginRef = useRef(null);
+  const lastOriginRef = useRef<string | null>(null);
   // a new forecast file: keep the hour if it exists there (switches, method), otherwise start from the beginning
   useEffect(() => {
     if (!ix) return;
@@ -186,27 +187,27 @@ export default function App() {
   // Rare larger values run off the chart (the tooltip still shows them).
   const yAxis = useMemo(() => {
     if (!d) return null;
-    const col = (c) => { const i = d.cols.indexOf(c); return i < 0 ? [] : d.rows.map((r) => r[i]).filter((v) => v != null).sort((a, b) => a - b); };
-    const pick = (a, p) => (a.length ? a[Math.min(a.length - 1, Math.floor(p * (a.length - 1)))] : null);
+    const col = (c: string): number[] => { const i = d.cols.indexOf(c); return i < 0 ? [] : (d.rows.map((r) => r[i]).filter((v) => v != null) as number[]).sort((a, b) => a - b); };
+    const pick = (a: number[], p: number) => (a.length ? a[Math.min(a.length - 1, Math.floor(p * (a.length - 1)))] : null);
     const real = col("actual_imbalance_price");
-    const lows = [pick(col("p10"), 0.01), pick(real, 0.01)].filter((v) => v != null);
-    const highs = [pick(col("p50"), 0.999), pick(col("p90"), 0.99), pick(real, 0.97)].filter((v) => v != null);
+    const lows = [pick(col("p10"), 0.01), pick(real, 0.01)].filter((v): v is number => v != null);
+    const highs = [pick(col("p50"), 0.999), pick(col("p90"), 0.99), pick(real, 0.97)].filter((v): v is number => v != null);
     const step = 50;
     const lo = Math.min(0, Math.floor(Math.min(...lows) / step) * step), hi = Math.max(step, Math.ceil(Math.max(...highs) / step) * step);
-    const ticks = [];
+    const ticks: number[] = [];
     for (let t = lo; t <= hi; t += step) ticks.push(t);
     return { lo, hi, ticks };
   }, [d]);
   const actualAt = useMemo(() => {
-    const m = new Map();
+    const m = new Map<string, number>();
     if (!d || !d.hasActuals) return m;
     const ti = d.cols.indexOf("delivery_start_utc"), ai = d.cols.indexOf("actual_imbalance_price");
-    for (const r of d.rows) if (r[ai] != null) m.set(r[ti], r[ai]);
+    for (const r of d.rows) if (r[ai] != null) m.set(r[ti] as string, r[ai] as number);
     return m;
   }, [d]);
 
   // render helpers (plain functions, not inner components: inner components would remount the controls on every render)
-  const shell = (children) => (
+  const shell = (children: React.ReactNode) => (
     <main className="relative min-h-screen overflow-hidden bg-background font-sans text-foreground lg:h-screen">
       {/* the brand wave as a calm light-blue background */}
       <div className="pointer-events-none fixed inset-0 z-0" aria-hidden="true">
@@ -227,14 +228,14 @@ export default function App() {
           <span className="text-sm text-muted-foreground">Period
             <Info align="right" text="Validation: a practice month with known real prices. Test forecast: the month that will be scored; its prices are unknown." />
           </span>
-          {Object.entries(SETS).map(([k, v]) => (
+          {(Object.entries(SETS) as [SetKey, { label: string }][]).map(([k, v]) => (
             <Button key={k} size="sm" variant={set === k ? "primary" : "outline"} className={set === k ? solidBtn : outlineBtn} onClick={() => setSet(k)}>{v.label}</Button>
           ))}
         </div>
       </header>
       {/* the two ways to predict: the highlighted box decides what the chart shows */}
       <div className="grid gap-3 sm:grid-cols-2">
-        {Object.entries(METHODS).map(([k, m]) => {
+        {(Object.entries(METHODS) as [MethodKey, (typeof METHODS)[MethodKey]][]).map(([k, m]) => {
           const active = method === k;
           return (
             <button key={k} type="button" aria-pressed={active} onClick={() => setMethod(k)}
@@ -248,7 +249,7 @@ export default function App() {
       </div>
     </div>
   );
-  const message = (title, children) => (
+  const message = (title: string, children: React.ReactNode) => (
     <Card className="flex flex-1 items-center justify-center bg-white/90 p-8 text-center">
       <div className="max-w-xl space-y-3">
         <p className={cn(h2, "text-3xl")}>{title}.</p>
@@ -270,14 +271,14 @@ export default function App() {
 
   const origin = ix.origins[pos];
   const rows = ix.get(origin);
-  const hasAct = d.hasActuals;
+  const hasAct = d!.hasActuals;
   const days = [...new Set(ix.origins.map(dayOf))];
 
   const Q = 15 * 60 * 1000, HOUR = 4 * Q;
   const o0 = Date.parse(origin);
-  const iso = (ms) => new Date(ms).toISOString().slice(0, 19) + "Z";
+  const iso = (ms: number) => new Date(ms).toISOString().slice(0, 19) + "Z";
   // Forecast rows of origin k by delivery time (cached).
-  const forecastAt = (k) => {
+  const forecastAt = (k: number): Map<number, Row> => {
     if (k < 0 || k > last) return EMPTY;
     let m = rowCache.get(k);
     if (!m) { m = new Map(ix.get(ix.origins[k]).map((r) => [Date.parse(r.delivery_start_utc), r])); rowCache.set(k, m); }
@@ -286,10 +287,10 @@ export default function App() {
   // Smooth chart: T is the (possibly in-between) time the forecast was made. The two neighbouring forecasts k0 and k1 are blended
   // with weight sf, and so are the forecasts made 3 h earlier. The time axis slides with T.
   const f = clamp(fpos), k0 = Math.floor(f), k1 = Math.min(k0 + 1, last), sf = f - k0;
-  const oMs = (k) => Date.parse(ix.origins[k]);
+  const oMs = (k: number) => Date.parse(ix.origins[k]);
   const T = oMs(k0) + sf * (oMs(k1) - oMs(k0));
   const A = forecastAt(k0), B = forecastAt(k1), EA = forecastAt(k0 - 3), EB = forecastAt(k1 - 3);
-  const blend = (ma, mb, ms, key2) => {
+  const blend = (ma: Map<number, Row>, mb: Map<number, Row>, ms: number, key2: NumKey): number | null => {
     const a2 = ma.get(ms), b2 = mb.get(ms);
     if (a2 && b2) return a2[key2] + (b2[key2] - a2[key2]) * sf;
     const r = b2 || a2;
@@ -297,7 +298,7 @@ export default function App() {
   };
   const knownUntil = T - 75 * 60 * 1000;               // real prices are published about 75 min after the quarter-hour starts
   const lastKnown = Math.floor(knownUntil / Q) * Q;
-  const chart = [];
+  const chart: ChartPoint[] = [];
   for (let ms = Math.ceil((T - 3 * HOUR - Q) / Q) * Q; ms <= T + 10 * HOUR; ms += Q) {
     const fut = ms >= T, past = ms < T;
     const p10 = fut ? blend(A, B, ms, "p10") : null, p90 = fut ? blend(A, B, ms, "p90") : null;
@@ -305,14 +306,14 @@ export default function App() {
     const real = actualAt.get(iso(ms)) ?? null;
     chart.push({
       ms,
-      base: p10, width: p10 == null ? null : p90 - p10, p10, p50: fut ? blend(A, B, ms, "p50") : null, p90,
-      prevBase: e10, prevWidth: e10 == null ? null : e90 - e10, prevP50: past ? blend(EA, EB, ms, "p50") : null,
+      base: p10, width: p10 == null || p90 == null ? null : p90 - p10, p10, p50: fut ? blend(A, B, ms, "p50") : null, p90,
+      prevBase: e10, prevWidth: e10 == null || e90 == null ? null : e90 - e10, prevP50: past ? blend(EA, EB, ms, "p50") : null,
       realKnown: ms <= knownUntil ? real : null, realLater: ms >= lastKnown ? real : null,
     });
   }
-  const ticks = [];
+  const ticks: number[] = [];
   for (let t = Math.ceil((T - 3 * HOUR) / HOUR) * HOUR; t <= T + 9.75 * HOUR; t += HOUR) ticks.push(t);
-  const withAct = rows.filter((r) => hasAct && r.actual_imbalance_price != null);
+  const withAct = rows.filter((r) => hasAct && r.actual_imbalance_price != null) as (Row & { actual_imbalance_price: number })[];
   const mae = withAct.length ? withAct.reduce((s, r) => s + Math.abs(r.p50 - r.actual_imbalance_price), 0) / withAct.length : null;
   const cov = withAct.length ? withAct.filter((r) => r.actual_imbalance_price >= r.p10 && r.actual_imbalance_price <= r.p90).length / withAct.length : null;
   const maxHi = Math.max(...rows.map((r) => r.p_spike_high)); const maxLo = Math.max(...rows.map((r) => r.p_spike_low));
@@ -327,7 +328,7 @@ export default function App() {
   const spikeText = maxHi >= 0.3 ? `High price spike possible around ${hhmm(hiRow.delivery_start_utc)} (${(maxHi * 100).toFixed(0)} %).` : "No unusual price spikes expected.";
   const priceText = `Most likely price ${lo50} to ${hi50} €/MWh. ${spikeText}`;
   const driversText = `Main drivers: ${drivers.map((x, i) => `${i + 1}. ${HELP[x] || x.replaceAll("_", " ")}`).join("; ")}.`;
-  const pct = (v) => `${(v * 100).toFixed(0)} %`;
+  const pct = (v: number) => `${(v * 100).toFixed(0)} %`;
 
   return shell(
     <>

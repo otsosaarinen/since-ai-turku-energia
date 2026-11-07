@@ -4,14 +4,14 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, expect, test, vi } from "vitest";
 
 afterEach(cleanup);   // each test starts with an empty document
-import App from "../src/App.jsx";
+import App from "../src/App";
 
 test("App renders forecast page from data without crashing", async () => {
   global.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
-  global.fetch = vi.fn(async (url) => {
+  global.fetch = vi.fn(async (url: string) => {
     if (!fs.existsSync("public" + url)) return { ok: false, status: 404, json: async () => { throw new Error("404"); } };
     return { ok: true, json: async () => JSON.parse(fs.readFileSync("public" + url, "utf8")) };
-  });
+  }) as unknown as typeof fetch;
   render(<App />);
   await waitFor(() => expect(screen.getByText(/Summary/)).toBeTruthy(), { timeout: 15000 });
   expect(screen.getByText(/Main drivers/)).toBeTruthy();
@@ -22,7 +22,7 @@ test("App renders forecast page from data without crashing", async () => {
   expect(screen.queryByText(/hindsight/)).toBeNull();
   // whole-period slider and date box reach the last day of the test period
   const when = () => screen.getByTestId("when").textContent;
-  const slider = screen.getByLabelText("whole period");
+  const slider = screen.getByLabelText("whole period") as HTMLInputElement;
   fireEvent.change(slider, { target: { value: slider.max } });
   // the controls must keep the same DOM node while the bar is dragged (no remount on every render)
   expect(screen.getByLabelText("whole period")).toBe(slider);
@@ -35,15 +35,15 @@ test("App renders forecast page from data without crashing", async () => {
 
 test("two method boxes: the active one is highlighted and switching changes what the chart shows", async () => {
   global.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
-  const real = (u) => JSON.parse(fs.readFileSync("public" + u, "utf8"));
+  const real = (u: string) => JSON.parse(fs.readFileSync("public" + u, "utf8"));
   let harnessReady = false;
-  global.fetch = vi.fn(async (url) => {
+  global.fetch = vi.fn(async (url: string) => {
     if (url.includes("harness")) {
       if (!harnessReady) return { ok: false, status: 404, json: async () => { throw new Error("404"); } };
       return { ok: true, json: async () => real(url.replace("harness_", "")) };   // pretend the harness files exist
     }
     return { ok: true, json: async () => real(url) };
-  });
+  }) as unknown as typeof fetch;
   render(<App />);
   const current = () => screen.getByRole("button", { name: /Machine-learning model/ });
   const harness = () => screen.getByRole("button", { name: /Harness prediction/ });
@@ -73,10 +73,10 @@ test("two method boxes: the active one is highlighted and switching changes what
 
 test("input toggles switch the chart to the matching precomputed model variant", async () => {
   global.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
-  const real = (u) => JSON.parse(fs.readFileSync("public" + u, "utf8"));
+  const real = (u: string) => JSON.parse(fs.readFileSync("public" + u, "utf8"));
   const computed = new Set(["011"]);                                   // pretend only "solar off" has been computed
-  const seen = [];
-  global.fetch = vi.fn(async (url) => {
+  const seen: string[] = [];
+  global.fetch = vi.fn(async (url: string) => {
     seen.push(url);
     if (url === "/data/variants/index.json") return { ok: true, json: async () => ({ metrics: { "111": { mae: 43.2 }, "011": { mae: 44.0 } } }) };
     const m = url.match(/^\/data\/variants\/(validation|final)_(\d{3})\.json$/);
@@ -86,9 +86,9 @@ test("input toggles switch the chart to the matching precomputed model variant",
     }
     if (!fs.existsSync("public" + url)) return { ok: false, status: 404, json: async () => { throw new Error("404"); } };
     return { ok: true, json: async () => real(url) };
-  });
+  }) as unknown as typeof fetch;
   render(<App />);
-  const sw = (name) => screen.getByRole("switch", { name });
+  const sw = (name: string) => screen.getByRole("switch", { name });
   await waitFor(() => expect(screen.getByTestId("when")).toBeTruthy(), { timeout: 15000 });
   expect(sw("Solar forecast").getAttribute("aria-checked")).toBe("true");
   expect(sw("Wind forecast").getAttribute("aria-checked")).toBe("true");
@@ -96,7 +96,7 @@ test("input toggles switch the chart to the matching precomputed model variant",
   await waitFor(() => expect(screen.getByTestId("variant-metrics").textContent).toMatch(/43\.2/), { timeout: 15000 });
 
   // move to a later hour first: flipping a switch must keep that hour and must not blank the page
-  const slider = screen.getByLabelText("whole period");
+  const slider = screen.getByLabelText("whole period") as HTMLInputElement;
   fireEvent.change(slider, { target: { value: "100" } });
   const hour = screen.getByTestId("when").textContent;
   fireEvent.click(sw("Solar forecast"));                                // solar off -> variant "011"

@@ -1,6 +1,6 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
-import App from "./App.jsx";
+import App from "./App";
 import "./style.css";
 
 // follow the system light/dark setting (the design system switches on a "dark" class)
@@ -9,4 +9,4 @@ const applyTheme = () => document.documentElement.classList.toggle("dark", mq.ma
 applyTheme();
 mq.addEventListener("change", applyTheme);
 
-createRoot(document.getElementById("root")).render(<App />);
+createRoot(document.getElementById("root")!).render(<App />);
