@@ -11,6 +11,7 @@ interface Preset { id: string; label: string; about: string }
 interface Keys { set: string[]; missing: string[] }
 interface Info { llama_url: string; models: string[]; presets: Preset[]; keys?: Keys }
 export interface JobView { id: string; status: "running" | "done" | "error" | "stopped"; model: string; preset: string; elapsed: number; lines: string[]; next: number; answer: string }
+interface LiveAlert { id: string; kind: string; severity: string; title: string; detail: string; source: string; at: string | null; until: string | null }
 
 const solidBtn = "border-2 border-orange-fill bg-orange-fill text-white hover:bg-orange-fill/90";
 const outlineBtn = "border-2 border-navy bg-white text-navy hover:bg-bg-light";
@@ -172,6 +173,9 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
   const [err, setErr] = useState("");
   const [keys, setKeys] = useState<Keys>({ set: [], missing: [] });
   const [keyValue, setKeyValue] = useState<Record<string, string>>({});
+  const [alerts, setAlerts] = useState<LiveAlert[]>([]);
+  const seenRef = useRef<Set<string>>(new Set());
+  const firstPollRef = useRef(true);
   const nextRef = useRef(0);
   const logRef = useRef<HTMLOListElement>(null);
   const running = job?.status === "running";
@@ -205,6 +209,33 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
     }, pollMs);
     return () => clearInterval(id);
   }, [running, pollMs]);                                    // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The server polls the live feeds itself and starts a run when a new alert appears; the panel only shows them.
+  useEffect(() => {
+    if (info === null || info === "offline" || info === "outdated") return undefined;
+    const tick = () => {
+      fetch(`${API}/alerts`).then((r) => (r.ok ? r.json() : null)).then((d) => {
+        if (!d) return;
+        const list: LiveAlert[] = d.alerts ?? [];
+        setAlerts(list);
+        if (!firstPollRef.current) {
+          list.filter((a) => !seenRef.current.has(a.id)).forEach((a) => {
+            if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+              new Notification(`Live alert: ${a.title}`, { body: a.detail || a.source });
+            }
+          });
+        }
+        firstPollRef.current = false;
+        list.forEach((a) => seenRef.current.add(a.id));
+        fetch(`${API}/job`).then((r) => (r.ok ? r.json() : null)).then((j) => {
+          if (j?.job?.status === "running" && !running) { nextRef.current = 0; apply(j.job); }
+        }).catch(() => undefined);
+      }).catch(() => undefined);
+    };
+    tick();
+    const id = setInterval(tick, 60000);
+    return () => clearInterval(id);
+  }, [info]);                                              // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { const el = logRef.current; if (el) el.scrollTop = el.scrollHeight; }, [lines.length]);
 
@@ -297,6 +328,24 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
               <Button size="sm" variant="outline" className={cn(outlineBtn, "w-20")} disabled={!running} onClick={stop}>Stop</Button>
             </div>
             {err && <p className="text-sm text-destructive" role="alert">{err}</p>}
+            {alerts.length > 0 && (
+              <div className="flex flex-col gap-1 text-xs" data-testid="live-alerts">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium">Live alerts</span>
+                  <span className="text-muted-foreground">{alerts.length} · a new one recalculates the forecast automatically</span>
+                  {typeof Notification !== "undefined" && Notification.permission === "default" && (
+                    <Button size="sm" variant="outline" className={cn(outlineBtn, "h-7 px-2 text-xs")} onClick={() => Notification.requestPermission()}>Notify</Button>
+                  )}
+                </div>
+                <ul className="max-h-40 space-y-1 overflow-auto">
+                  {alerts.map((a) => (
+                    <li key={a.id} className={cn("rounded border px-2 py-1", ["red", "orange", "high"].includes(a.severity) ? "border-destructive/60 text-destructive" : "border-grey-light")}>
+                      <span className="font-medium">{a.title}</span> <span className="text-muted-foreground">· {a.source}{a.until ? `, until ${fiTime(a.until)}` : ""}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
           <div className="flex flex-col gap-3 lg:self-start">
             <details open={!generated} className="group flex flex-col">

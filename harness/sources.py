@@ -59,6 +59,12 @@ SOURCES = {
         "url": "https://api.spot-hinta.fi/JustNow",
         "params": "",
     },
+    "nordpool_dayahead": {  # Nord Pool day-ahead per bidding zone, 15 min EUR/MWh, keyless
+        "url": "https://dataportal-api.nordpoolgroup.com/api/DayAheadPrices"
+        "?date={date}&market=DayAhead&deliveryArea={area}&currency=EUR",
+        "params": "date = YYYY-MM-DD, area = SE1|SE2|SE3|SE4|NO1..NO5|DK1|DK2|FI",
+        "note": "elering (nordpool_price) only carries EE/LV/LT/FI; this carries every zone",
+    },
     # Statnett (Norway's TSO) open REST, keyless — Nordic-wide, not just NO.
     "statnett_overview": {  # latest Nordic production/consumption per area by source, MW
         "url": "https://driftsdata.statnett.no/restapi/ProductionConsumption/GetLatestDetailedOverview",
@@ -256,6 +262,7 @@ statsmodels, sklearn). Print results clearly.
 get_data sources (* = forward-looking weather feed):
   nordpool_price       day-ahead spot, EUR/MWh, every area (params: start,end)
   spot_price_fi        Finland current spot, with tax
+  nordpool_dayahead    day-ahead spot per bidding zone, 15 min EUR/MWh (params: date, area)
 * cloud_wind           cloud cover + wind m/s at a point, hourly to 8 days (params: lat, lon)
 * sun_position         solar irradiance W/m2 + cloud cover + sunrise/sunset, hourly to 8 days (lat, lon)
   warnings_areal       Nordic areal disaster warnings (params: lat, lon)
@@ -299,6 +306,12 @@ Sources are meant to be combined, not reported one by one:
   risk:  warnings_areal / outages_caruna / outages_finland_dso over a zone — an
          outage or warning removes load or production, so it belongs in any
          production estimate; outages_finland_dso gives the national summary.
+  zones:  per-zone installed wind/solar capacity and density (MW/100 km2), and the
+         modelled production -> price link. In run_python: `import zones`, then
+         zones.cf(zone, date) for hourly wind and solar MW from the zone's own weather
+         plus the fitted EUR/MWh per MW of each (negative = more output, lower price);
+         zones.correlate(zone, date) for weather vs price. Zones: FI, SE1-4, NO1-5,
+         DK1-2. This is the only multi-zone source — the fingrid_* ones are Finland-only.
   nordic: statnett_overview gives every Nordic zone's generation mix and load in
          ONE keyless call — use it where the fingrid_* sources only cover Finland,
          and statnett_reservoir (NO hydro fill %) is the multi-week price driver for
@@ -312,6 +325,10 @@ demand or price forecast is in scope. Drive it from recent actuals plus the weat
         curve; extend demand from the last actuals by the weekly load shape. The
         day-ahead auction already prices tomorrow — that is the market's forecast,
         not yours: use hours up to now as calibration and predict the rest.
+        Production is what moves EUR/MWh: go weather -> MW with zones.cf(), then MW ->
+        EUR/MWh with its fitted slope, and sanity-check that slope against the actual
+        price move before you trust it. A zone with a big plant base (DK, SE3/SE4)
+        responds more per MW than a thin one.
   10 d  the trend plus the edge cases: a wind lull, a cloud build-up, a demand step,
         an outage or a standing warning. Use the hourly weather feed as the driver and
         your own fitted relations for the rest; there is no published price that far out,

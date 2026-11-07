@@ -25,6 +25,9 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE.parent))  # src.live_alerts lives at the repo root
+from src.live_alerts import fetch as _fetch_alerts  # noqa: E402
+
 PORT = int(os.environ.get("HARNESS_SERVER_PORT", "8765"))
 LLAMA_URL = os.environ.get("LLAMACPP_BASE_URL", "http://localhost:9931/v1")
 # The prompts live here, not in the browser: a run executes model-written Python, so the website can only choose one of these.
@@ -60,6 +63,7 @@ PRESETS = {
     },
 }
 TIMEOUT_S = 20 * 60
+ALERT_POLL_S = int(os.environ.get("ALERT_POLL_S", "300"))  # seconds between live-alert polls
 LOCAL_NAMES = {"localhost", "127.0.0.1"}
 MODEL_RE = re.compile(r"^[\w./:\-]{1,200}$")
 # Only the light model is offered and accepted. HARNESS_MODEL_FILTER = comma-separated words, a model id must contain one (case-insensitive).
@@ -243,6 +247,40 @@ def list_models() -> list[str]:
         return []
 
 
+ALERTS: list[dict] = []  # the latest poll, served to the panel
+ALERT_SEEN: set[str] = set()  # ids already reported, so one event recalculates once
+
+
+def _poll_alerts() -> list[dict]:
+    """One poll: store the latest alerts and return the ids not seen before."""
+    global ALERTS
+    try:
+        alerts = _fetch_alerts()
+    except Exception as e:
+        alerts = []
+        print(f"[alerts] feed failed: {e}", file=sys.stderr, flush=True)
+    with LOCK:
+        ALERTS = alerts
+    new = [a for a in alerts if a["id"] not in ALERT_SEEN]
+    ALERT_SEEN.update(a["id"] for a in alerts)
+    return new
+
+
+def _recalc(new: list[dict]) -> None:
+    """A new price-relevant alert reruns the imbalance forecast on its own."""
+    models = list_models() if new else []
+    if models and "FINGRID_API_KEY" in keys_status()["set"]:
+        print(f"[alerts] {len(new)} new ({new[0]['title']}), recalculating", file=sys.stderr, flush=True)
+        start_job("imbalance", models[0])
+
+
+def _watch_alerts() -> None:
+    _poll_alerts()  # the first poll only seeds the seen set
+    while True:
+        time.sleep(ALERT_POLL_S)
+        _recalc(_poll_alerts())
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "harness-panel"
 
@@ -275,6 +313,9 @@ class Handler(BaseHTTPRequestHandler):
         elif url.path == "/api/job":
             since = int((parse_qs(url.query).get("since") or ["0"])[0] or 0)
             self._send(200, {"job": job_view(since)})
+        elif url.path == "/api/alerts":
+            with LOCK:
+                self._send(200, {"alerts": ALERTS, "poll_seconds": ALERT_POLL_S})
         else:
             self._send(404, {"error": "not found"})
 
@@ -319,6 +360,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
+    threading.Thread(target=_watch_alerts, daemon=True).start()
     srv = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
     print(f"Harness panel server on http://127.0.0.1:{PORT} (local model at {LLAMA_URL}). Ctrl+C stops it.", flush=True)
     try:

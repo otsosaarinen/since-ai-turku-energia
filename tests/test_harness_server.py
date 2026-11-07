@@ -114,6 +114,65 @@ def test_keys_are_checked_and_saved_without_echoing_values(tmp_path, monkeypatch
     monkeypatch.delenv("FINGRID_API_KEY", raising=False)
 
 
+def test_alerts_poll_reports_only_new_ids(monkeypatch):
+    alerts = [{"id": "a", "title": "storm"}, {"id": "b", "title": "outage"}]
+    monkeypatch.setattr(server, "_fetch_alerts", lambda: alerts)
+    server.ALERT_SEEN.clear()
+    assert server._poll_alerts() == alerts
+    assert server._poll_alerts() == []          # the same event must not recalculate twice
+    assert server.ALERTS == alerts
+
+
+def test_a_new_alert_starts_the_forecast(monkeypatch):
+    monkeypatch.setattr(server, "list_models", lambda: ["gemma-E4B"])
+    calls = []
+    monkeypatch.setattr(server, "start_job", lambda preset, model: calls.append((preset, model)) or "ok")
+    server._recalc([{"id": "a", "title": "storm"}])
+    assert calls == [("imbalance", "gemma-E4B")]
+    server._recalc([])                          # nothing new: no run
+    assert calls == [("imbalance", "gemma-E4B")]
+
+
+def test_watch_seeds_then_recalculates_on_a_new_alert(monkeypatch):
+    feeds = iter([[{"id": "a", "title": "old"}], [{"id": "a", "title": "old"}],
+                  [{"id": "a", "title": "old"}, {"id": "b", "title": "new"}]])
+    monkeypatch.setattr(server, "_fetch_alerts", lambda: next(feeds))
+    monkeypatch.setattr(server, "list_models", lambda: ["gemma-E4B"])
+    calls = []
+    monkeypatch.setattr(server, "start_job", lambda preset, model: calls.append((preset, model)) or "ok")
+
+    naps = []
+
+    def sleep(_):
+        naps.append(1)
+        if len(naps) >= 3:            # end the endless watcher after the third poll
+            raise StopIteration
+    monkeypatch.setattr(server.time, "sleep", sleep)
+    server.ALERT_SEEN.clear()
+    try:
+        server._watch_alerts()
+    except StopIteration:
+        pass
+    assert calls == [("imbalance", "gemma-E4B")]   # the seed poll and the repeat poll did nothing
+
+
+def test_alerts_endpoint_serves_the_last_poll(monkeypatch):
+    import json
+    import threading
+    import urllib.request
+    from http.server import ThreadingHTTPServer
+
+    setattr(server, "ALERTS", [{"id": "a", "title": "storm"}])
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), server.Handler)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{srv.server_address[1]}/api/alerts", timeout=5) as r:
+            got = json.load(r)
+    finally:
+        srv.shutdown()
+    assert got["alerts"] == server.ALERTS
+
+
 def test_info_endpoint_lists_presets_models_and_key_names(monkeypatch):
     import json
     import threading
