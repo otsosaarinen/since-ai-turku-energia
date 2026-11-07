@@ -121,8 +121,8 @@ dd/mm/yyyy, and has only two "i" tooltips (period buttons, key numbers; the char
   highlighted box decides what the chart shows. To connect the harness, add its forecasts as `web/public/data/harness_validation.json` and
   `harness_final.json` in the same format as `validation.json` / `final.json` (`{name, hasActuals, cols, rows}`, see `src/exports.py`
   `web_payload`); until then its box shows a "not connected yet" message.
-- **Summary strip:** a plain-language summary, the main drivers and the key numbers (chance of a high and a low price spike, chance the grid needs
-  more power and, when real prices are known, the average error and how often the real price stayed in the likely range).
+- **Summary strip:** one plain sentence (does the grid need more or less power), the main drivers and three numbers (chance of a high and of a low price spike
+  and, when real prices are known, the average error). The method boxes keep one short line each. Kept short on purpose: the page was found cluttered, so everything else was cut. All cards are plain white.
 - **Chart (in the middle, as big as possible):** forecast, likely range (blue), real price (red), the forecast made 3 h earlier (grey) and a
   "Forecast made" line. The price axis is fixed (-50 to 350 EUR/MWh, from the data: the forecast line's 99.9th percentile and the likely range's 99th) so its numbers never move while time moves or plays;
   rare larger values run off the top and show in the hover tooltip. Above it: 1 h / 1 day steps that glide smoothly, a date list, a bar over the whole period, a **Play** button (speeds 1x, 3x,

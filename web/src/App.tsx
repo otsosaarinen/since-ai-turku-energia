@@ -12,8 +12,8 @@ import { Area, CartesianGrid, ComposedChart, Legend, Line, ReferenceLine, Respon
 // The two ways of predicting. "harness" has no forecasts yet: when its two files (same format as validation.json / final.json)
 // appear in web/public/data/, the box switches the chart to them automatically.
 const METHODS: Record<MethodKey, { title: string; sub: string; files: Record<SetKey, string> }> = {
-  current: { title: "Machine-learning model", sub: "LightGBM, trained on 1 June – 4 October.", files: { validation: "validation", final: "final" } },
-  harness: { title: "Harness prediction", sub: "A second method. Not connected yet.", files: { validation: "harness_validation", final: "harness_final" } },
+  current: { title: "Machine-learning model", sub: "Gradient-boosted trees (LightGBM): quantiles, direction and spikes.", files: { validation: "validation", final: "final" } },
+  harness: { title: "Harness prediction", sub: "Second forecasting method (harness). Not connected yet.", files: { validation: "harness_validation", final: "harness_final" } },
 };
 // Input toggles of the current model. Each combination is a separately trained model variant computed by scripts/run_variants.py;
 // the key has one digit per toggle (1 = on, 0 = off), "111" is the normal model served by validation.json / final.json.
@@ -241,9 +241,9 @@ export default function App() {
           return (
             <button key={k} type="button" aria-pressed={active} onClick={() => setMethod(k)}
               className={cn("flex flex-col items-start rounded-lg border-2 border-b-4 px-3 py-2 text-left sm:px-5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                active ? "border-orange-fill border-b-brand bg-orange-fill text-white shadow-md" : "border-grey-light bg-white/90 text-foreground hover:bg-bg-light")}>
+                active ? "border-orange-fill border-b-brand bg-orange-fill text-white shadow-md" : "border-grey-light bg-white text-foreground hover:bg-bg-light")}>
               <span className="font-display text-base font-bold uppercase leading-tight tracking-wide sm:text-xl">{m.title}</span>
-              <span className={cn("hidden text-sm sm:inline", active ? "text-white/90" : "text-muted-foreground")}>{m.sub}</span>
+              <span className={cn("text-xs sm:text-sm", active ? "text-white/90" : "text-muted-foreground")}>{m.sub}</span>
             </button>
           );
         })}
@@ -251,7 +251,7 @@ export default function App() {
     </div>
   );
   const message = (title: string, children: React.ReactNode) => (
-    <Card className="flex flex-1 items-center justify-center bg-white/90 p-8 text-center">
+    <Card className="flex flex-1 items-center justify-center bg-white p-8 text-center">
       <div className="max-w-xl space-y-3">
         <p className={cn(h2, "text-3xl")}>{title}.</p>
         <div className="text-muted-foreground">{children}</div>
@@ -316,18 +316,13 @@ export default function App() {
   for (let t = Math.ceil((T - 3 * HOUR) / HOUR) * HOUR; t <= T + 9.75 * HOUR; t += HOUR) ticks.push(t);
   const withAct = rows.filter((r) => hasAct && r.actual_imbalance_price != null) as (Row & { actual_imbalance_price: number })[];
   const mae = withAct.length ? withAct.reduce((s, r) => s + Math.abs(r.p50 - r.actual_imbalance_price), 0) / withAct.length : null;
-  const cov = withAct.length ? withAct.filter((r) => r.actual_imbalance_price >= r.p10 && r.actual_imbalance_price <= r.p90).length / withAct.length : null;
   const maxHi = Math.max(...rows.map((r) => r.p_spike_high)); const maxLo = Math.max(...rows.map((r) => r.p_spike_low));
   const upShare = rows.reduce((s, r) => s + r.p_up, 0) / rows.length;
-  const hiRow = rows.reduce((a, r) => (r.p_spike_high > a.p_spike_high ? r : a), rows[0]);
   const drivers = (rows[0].top_drivers || "").split(";").filter(Boolean);
 
   const dirText = upShare > 0.55 ? "The grid probably needs more power: prices lean above the day-ahead price."
     : upShare < 0.45 ? "The grid probably needs less power: prices lean below the day-ahead price."
       : "It is unclear whether the grid needs more or less power.";
-  const lo50 = Math.round(Math.min(...rows.map((r) => r.p50))), hi50 = Math.round(Math.max(...rows.map((r) => r.p50)));
-  const spikeText = maxHi >= 0.3 ? `High price spike possible around ${hhmm(hiRow.delivery_start_utc)} (${(maxHi * 100).toFixed(0)} %).` : "No unusual price spikes expected.";
-  const priceText = `Most likely price ${lo50} to ${hi50} €/MWh. ${spikeText}`;
   const driversText = `Main drivers: ${drivers.map((x, i) => `${i + 1}. ${HELP[x] || x.replaceAll("_", " ")}`).join("; ")}.`;
   const pct = (v: number) => `${(v * 100).toFixed(0)} %`;
 
@@ -335,25 +330,22 @@ export default function App() {
     <>
       {header}
       {/* one slim strip: what it means, the main drivers, the key numbers */}
-      <Card className="flex flex-wrap items-center gap-x-6 gap-y-3 order-last border-l-4 border-l-brand bg-white/95 p-3 lg:order-none lg:h-32 lg:flex-nowrap lg:overflow-visible">
+      <Card className="flex flex-wrap items-center gap-x-6 gap-y-3 order-last border-l-4 border-l-brand bg-white p-3 lg:order-none lg:h-24 lg:flex-nowrap lg:overflow-visible">
         <div className="min-w-64 flex-1 lg:min-w-0">
           <h2 className={cn(h2, "text-base")}>Summary.</h2>
           <p className="leading-snug lg:line-clamp-1" title={dirText}>{dirText}</p>
-          <p className="mt-1 leading-snug lg:line-clamp-1" title={priceText}>{priceText}</p>
           <p className="mt-1 text-sm lg:line-clamp-2 leading-snug text-muted-foreground" title={driversText}>{driversText}</p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           <Chip value={pct(maxHi)} label="high price spike" />
           <Chip value={pct(maxLo)} label="low price spike" />
-          <Chip value={pct(upShare)} label="grid needs more power" />
           {hasAct && <Chip value={mae == null ? "–" : mae.toFixed(1)} label="average error, €/MWh" />}
-          {hasAct && <Chip value={cov == null ? "–" : pct(cov)} label="real price in range" />}
-          <Info align="right" text="Spike: chance the price ends up over 50 €/MWh above (high) or below (low) the day-ahead price. Error and range need real prices." />
+          <Info align="right" text="Spike: chance the price ends up over 50 €/MWh above (high) or below (low) the day-ahead price. The error needs real prices." />
         </div>
       </Card>
 
       {/* the chart in the middle, as big as possible */}
-      <Card className="flex min-h-[26rem] flex-1 flex-col gap-2 bg-white/95 p-3 sm:p-4 lg:gap-0">
+      <Card className="flex min-h-[26rem] flex-1 flex-col gap-2 bg-white p-3 sm:p-4 lg:gap-0">
         <div className="contents lg:flex lg:flex-wrap lg:items-center lg:justify-between lg:gap-x-4 lg:gap-y-2">
           <h2 className={cn(h2, "order-1 text-2xl lg:order-none")}>Price forecast.
           </h2>
@@ -408,7 +400,7 @@ export default function App() {
               <YAxis domain={yAxis ? [yAxis.lo, yAxis.hi] : ["auto", "auto"]} ticks={yAxis ? yAxis.ticks : undefined} allowDataOverflow stroke={C.axis} fontSize={12} unit=" €" width={56} />
               <Tooltip content={<ChartTip />} />
               <Area dataKey="prevBase" stackId="c" stroke="none" fill="transparent" legendType="none" isAnimationActive={false} />
-              <Area dataKey="prevWidth" stackId="c" stroke="none" fill={C.earlier} fillOpacity={0.15} name="Range of the earlier forecast" isAnimationActive={false} />
+              <Area dataKey="prevWidth" stackId="c" stroke="none" fill={C.earlier} fillOpacity={0.15} legendType="none" name="Range of the earlier forecast" isAnimationActive={false} />
               <Line dataKey="prevP50" stroke={C.earlier} strokeWidth={2} strokeDasharray="2 3" dot={false} name="Forecast made 3 h earlier" isAnimationActive={false} />
               <Area dataKey="base" stackId="b" stroke="none" fill="transparent" legendType="none" isAnimationActive={false} />
               <Area dataKey="width" stackId="b" stroke="none" fill={C.band} fillOpacity={0.28} name="Likely range (8 times out of 10)" isAnimationActive={false} />
