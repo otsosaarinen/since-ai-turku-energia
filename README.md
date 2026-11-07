@@ -42,7 +42,7 @@ Never commit `data/`, `starter_package_v1/` or `outputs/` (they are git-ignored;
 **3. Install**
 ```bash
 uv sync
-uv run pytest -q                       # 21 tests: availability filter and leakage checks (about 20 s)
+uv run pytest -q                       # 23 tests: availability filter, leakage checks and input groups (about 20 s)
 ```
 
 **4. Reproduce the organisers' baseline** (once; the validation step compares against it)
@@ -68,32 +68,55 @@ It ends with `VALIDATION PASSED` and `Errors: 0`. The submission file is `output
 
 **Other commands**
 ```bash
+uv run scripts/run_variants.py         # the 7 model variants behind the viewer's input switches (about 12 min, optional)
 uv run scripts/run_rolling.py --tag X  # 8 weekly validation windows (about 2 min); add --ref OTHER_TAG to compare with an earlier run
 uv run python -I starter_package_v1/validate_submission.py --backtest outputs/final/forecast_backtest.csv --origins starter_package_v1/forecast_origins.csv
 ```
 Validation outputs: `outputs/validation/forecast_backtest.csv`, `backtest_vs_actual.csv`, `score/` (`score_summary.md`, `score_by_horizon.csv`).
 All settings (periods, seed, number of seeds, LightGBM parameters) are in `configs/default.yaml`.
 
-## Look at the forecasts
+## Look at the forecasts (web viewer)
 ```bash
-./scripts/start_web.sh                   # starts the viewer at http://localhost:5173 (Ctrl+C stops it)
-cd web && npx vitest run                 # viewer test
+./scripts/start_web.sh                           # starts the viewer at http://localhost:5173 (Ctrl+C stops it)
+cd web && npx vitest run                         # 9 viewer tests
 uv run scripts/show_origin.py 2026-09-20T09:00   # one validation origin in the terminal (UTC)
 ```
-The viewer (`web/`, React + Recharts, styled with the Turku Energia design system in `web/src/design-system/`) is one screen without scrolling:
-the price chart (p50, p10-p90 band, real price, the forecast made 3 h earlier, a "now" line) takes most of the space, with time controls above it
-(1 h / 1 day steps, date list, a bar over the whole period) and the key numbers, a short summary and the top three drivers on the left.
-It uses Finnish time and dd/mm/yyyy, and switches between the validation month (with real prices) and the test forecast (without).
+The viewer (`web/`, React + Recharts) is one screen without scrolling. It follows the Turku Energia graphic guidelines (white page, orange
+as the accent colour, blue and grey structure with WCAG AA contrast, bold condensed capital headlines, plain wording), uses Finnish time and
+dd/mm/yyyy, and has only three "i" tooltips (period buttons, key numbers, how to read the chart). What is on the screen, top to bottom:
+- **Period buttons:** the validation month (with real prices) or the test forecast (without).
+- **Two method boxes:** **Current model** (this repo's LightGBM forecasts) and **Harness prediction** (a second method, not connected yet). The
+  highlighted box decides what the chart shows. To connect the harness, add its forecasts as `web/public/data/harness_validation.json` and
+  `harness_final.json` in the same format as `validation.json` / `final.json` (`{name, hasActuals, cols, rows}`, see `src/exports.py`
+  `web_payload`); until then its box shows a "not connected yet" message.
+- **Summary strip:** a plain-language summary, the main drivers and the key numbers (chance of a high and a low price spike, chance the grid needs
+  more power and, when real prices are known, the average error and how often the real price stayed in the likely range).
+- **Chart (in the middle, as big as possible):** forecast, likely range (blue), real price (red), the forecast made 3 h earlier (grey) and a
+  "Forecast made" line. The price axis is fixed (-50 to 250 EUR/MWh, from the data's 1st to 95th percentile) so its numbers never move while time moves or plays;
+  rare larger values run off the top and show in the hover tooltip. Above it: 1 h / 1 day steps that glide smoothly, a date list, a bar over the whole period, a **Play** button (speeds 1x, 3x,
+  10x forecast hours per second; stops at the end) and the **input switches**.
+- **Input switches (Current model only):** turn Fingrid's day-ahead **solar**, **wind** and **consumption** forecasts on or off. The page cannot
+  re-run the model, so each of the 8 combinations is a separately trained model computed beforehand with `uv run scripts/run_variants.py`
+  (7 extra variants, about 12 minutes, files in `web/public/data/variants/`). A label shows the validation error of the chosen variant.
+  Residual-load features combine all three forecasts, so they are removed whenever any switch is off. Real cloud or sunlight data is not in the model.
 
-`start_web.sh` rebuilds the viewer data from `outputs/` when that exists (model owner's machine); otherwise it uses ready-made
-`web/public/data/validation.json` and `final.json`. **On another laptop (e.g. a teammate's):** `git clone`, put those two files (from the
-model owner; they are not in git) into `web/public/data/`, and run `./scripts/start_web.sh`. Only Node.js is needed; no Python, data or model.
-
-`app/app.py` is an older, optional Streamlit viewer (`uv run --group app streamlit run app/app.py`).
+**Data for the viewer.** `start_web.sh` rebuilds `web/public/data/validation.json` and `final.json` from `outputs/` when that exists (the model
+owner's machine); otherwise it uses the JSON files already in `web/public/data/`. All of `web/public/data/` is git-ignored (forecasts and real
+imbalance prices, no spot prices). **On another laptop (e.g. a teammate's):** `git clone`, copy the whole `web/public/data/` folder from the model
+owner (about 75 MB with `variants/`; without `variants/` the switches show "not computed yet") and run `./scripts/start_web.sh`. Only Node.js
+is needed; no Python, data or model.
+**On Windows** the `.sh` script does not run (double-clicking it only opens it in an editor). Use a terminal (PowerShell or the VS Code terminal) in the repo folder instead:
+```
+cd web
+npm install
+npm run dev
+```
+and open http://localhost:5173. `app/app.py` is an older, optional Streamlit viewer (`uv run --group app streamlit run app/app.py`).
 
 ## Layout
 - `src/availability.py` availability filter (fast index, same result as the organiser's `rows_available_at`)
-- `src/features.py` features per (origin, step) | `src/train.py`, `src/predict.py` models | `src/evaluate.py` validator and scorer wrappers
-- `web/` React viewer styled with the Turku Energia design system (`web/src/design-system/`)
-- `src/exports.py` `backtest_vs_actual` table | `src/baseline.py` organiser baseline | `tests/` | `configs/` | `scripts/` | `web/` viewer
-- `scripts/train_cpu.sbatch` LUMI Slurm job for the final run (untested; LUMI is optional, local training takes about a minute)
+- `src/features.py` features per (origin, step) and the input groups the viewer can switch off | `src/train.py`, `src/predict.py` models |
+  `src/evaluate.py` validator and scorer wrappers | `src/exports.py` viewer tables | `src/baseline.py` organiser baseline
+- `scripts/` `run_validation.py`, `run_rolling.py`, `run_final.py`, `run_variants.py`, `export_web_data.py`, `start_web.sh`, `show_origin.py`,
+  `train_cpu.sbatch` (LUMI Slurm job for the final run; untested, LUMI is optional because local training takes about a minute)
+- `web/` React viewer (`web/src/design-system/` = Turku Energia design components) | `tests/` Python tests | `configs/default.yaml` all model settings

@@ -49,6 +49,24 @@ DRIVER_GROUPS: list[tuple[str, str]] = [
 ]
 
 
+# Input groups that the web viewer can switch off (each switch = a separately trained model variant, see scripts/run_variants.py).
+# Residual load is built from all three forecasts (consumption - wind - solar), so those features go whenever any group is off.
+TOGGLE_GROUPS: dict[str, tuple[str, ...]] = {
+    "solar": ("solar_",),
+    "wind": ("wind_",),
+    "consumption": ("cons_fc",),     # day-ahead consumption forecast and its error features (cons_fcerr_*)
+}
+RESIDUAL_LOAD = ("resload_",)
+
+
+def dropped_features(columns: list[str], off_groups: list[str]) -> list[str]:
+    """Feature names to remove when the given toggle groups are switched off."""
+    if not off_groups:
+        return []
+    prefixes = [p for g in off_groups for p in TOGGLE_GROUPS[g]] + list(RESIDUAL_LOAD)
+    return [c for c in columns if c.startswith(tuple(prefixes))]
+
+
 def driver_of(feature: str) -> str:
     for prefix, name in DRIVER_GROUPS:
         if feature.startswith(prefix):

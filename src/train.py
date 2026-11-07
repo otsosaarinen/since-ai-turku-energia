@@ -89,7 +89,8 @@ def inner_split(df: pd.DataFrame, cfg: dict, cutoff) -> tuple[np.ndarray, np.nda
 
 
 def fit(df: pd.DataFrame, cfg: dict, cutoff, verbose: bool = True) -> Models:
-    feats = feature_columns(df)
+    drop = set(cfg["model"].get("drop_features") or [])   # features switched off (viewer toggles / ablations)
+    feats = [f for f in feature_columns(df) if f not in drop]
     mdl = Models(cfg, feats)
     T = targets(df, cfg)
     tr, va = inner_split(df, cfg, cutoff)

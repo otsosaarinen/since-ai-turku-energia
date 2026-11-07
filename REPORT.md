@@ -23,6 +23,37 @@
    Post-processing: sorted quantiles, renormalised direction probabilities, spike probabilities scaled so high+low <= 1.
 5. **Explainability.** `top_drivers` = the three feature groups with the largest SHAP contribution to p50 for that row;
    `data_cutoff_utc` = latest `first_usable_origin_utc` among the data used.
+6. **Situational view (web viewer, `web/`).** One screen: a plain-language summary and the main drivers, the chance of a high or low price
+   spike and of the grid needing more power, and a chart of the forecast, its likely range, the real price and the forecast made 3 hours
+   earlier. Time can be moved to any forecast of the period (bar, date list, 1 h / 1 day steps) or played forward smoothly, so the usefulness can be
+   shown over time and not only live. Three switches turn Fingrid's solar, wind and consumption forecasts on and off (each combination is a
+   separately trained model, see "Input switches" below). A second prediction method ("Harness prediction") has a place in the viewer and is
+   shown as soon as its forecasts are added.
+
+## Factors affecting the forecast
+How often each factor is among the three biggest drivers (SHAP) of a forecast, over all 26,920 rows of the test forecast:
+
+| Factor | Share of forecasts |
+|---|---|
+| The day-ahead (spot) price | 95 % |
+| How far recent imbalance prices were from the day-ahead price | 54 % |
+| The wind power forecast | 52 % |
+| The latest imbalance prices | 40 % |
+| Use of the automatic balancing reserve (aFRR) | 21 % |
+| Whether the grid recently needed more or less power (regulation direction) | 15 % |
+| The consumption forecast | 13 % |
+| Prices and use of the manual balancing reserve (mFRR) | 5 % |
+| Imbalance prices in Sweden and Estonia | 4 % |
+| The solar forecast, calendar, residual load | under 1 % each |
+
+The factors are mostly the day-before structure (price, wind and consumption forecasts) and the most recent hour of the balancing market;
+persistence beyond about one hour is weak (the spread's autocorrelation is about 0.09 at one hour). Cross-border flows, consumption and
+production measurements and the FI-EE capacity are inputs too but rarely a top-three driver.
+
+**Input switches.** Leaving out the solar, wind and consumption forecasts, in every combination, changes the validation error by at most
+0.8 EUR/MWh (all three off: +0.4, 1 %), with no consistent order, so none of the three adds a measurable accuracy gain on this month; the wind
+forecast looks the most useful and the solar forecast the least. Details in `EXPERIMENTS.md` section 6. Real cloud or sunlight data is not in the
+model.
 
 ## Validation versus test (terms used in this report)
 - **Test period (5 Oct – 1 Nov):** the real submission. The organisers hold the real prices and score `forecast_backtest.csv`; we never see them.
@@ -97,3 +128,4 @@ The full list of experiments and numbers is in `EXPERIMENTS.md`.
 - Direction improves the Brier score only moderately (0.412 vs 0.451): "none" is almost never observed (0.3 %).
 - Tried without benefit: see `EXPERIMENTS.md`. Differences of ~1 EUR/MWh MAE between variants are within noise.
 - The final run could not be scored locally (test actuals are held by the organiser).
+- The web viewer was built to the Turku Energia graphic guidelines but has not been checked with the official logo (not supplied).

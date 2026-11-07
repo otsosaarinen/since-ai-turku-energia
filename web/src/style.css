@@ -1,3 +1,26 @@
 @import "tailwindcss" source(none);
 @import "./design-system/the-reading-room-3066fa/styles.css";
 @source "../src";
+
+/* Turku Energia graphic guidelines (Graafinen ohjeisto, Sep 2024), web pages:
+   white page base; orange is an accent, not the dominant colour; structure in blue and grey so text meets WCAG AA contrast;
+   headlines in a bold condensed face (turkuenergia.fi uses Fira Sans Extra Condensed), body in a neutral sans
+   (Franklin Gothic Book), key figures in Century Schoolbook. Colours: brand orange #F59B00, light blue #B4DCE6, blue #46BEDC,
+   info-graphic palette dark blue #0F4B73, grey #7D7D7D, light grey #E6E1DC, box background #EAF7FB. */
+@theme inline {
+  --font-display: "Fira Sans Extra Condensed", "Trade Gothic Bold Condensed", "Arial Narrow", sans-serif;
+  --font-sans: "Franklin Gothic Book", "Libre Franklin", "Helvetica Neue", Arial, sans-serif;
+  --font-serif: "Century Schoolbook", "New Century Schoolbook", "Source Serif 4", Georgia, serif;
+  --color-navy: #0f4b73;
+  --color-brand: #f59b00;
+  --color-orange-deep: #c96a00;   /* deepened orange for lines on white (3.8:1) */
+  --color-orange-fill: #b46000;   /* deepened orange for surfaces with white text (4.55:1, AA) */
+  --color-cyan-brand: #46bedc;
+  --color-bg-light: #eaf7fb;
+  --color-grey-brand: #7d7d7d;
+  --color-grey-light: #e6e1dc;
+}
+:root {
+  --background: #ffffff;
+  --sky: #b4dce6;
+}

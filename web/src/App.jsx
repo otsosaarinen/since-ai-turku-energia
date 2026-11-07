@@ -1,19 +1,39 @@
-import React, { useEffect, useMemo, useState } from "react";
-import {
-  Alert, AlertTitle, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Hills, Stat,
-} from "@/design-system/the-reading-room-3066fa";
+import React, { useEffect, useId, useMemo, useRef, useState } from "react";
+import { Alert, AlertTitle, Button, Card, Hills, cn } from "@/design-system/the-reading-room-3066fa";
 import { Area, CartesianGrid, ComposedChart, Legend, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
-const SETS = { validation: "Validation 7 Sep – 4 Oct (with actuals)", final: "Test forecast 5 Oct – 1 Nov" };
+// ---------------------------------------------------------------------------------------------------------------------
+// Look and feel follows the Turku Energia graphic guidelines (Graafinen ohjeisto 2024), web section:
+// white base, orange only as an accent, blue/grey for structure (AA contrast), bold condensed capital headlines that end in a
+// full stop, plain and warm wording. The logo is NOT recreated here (the guide forbids building it from an orange bar and text).
+// ---------------------------------------------------------------------------------------------------------------------
+
+// The two ways of predicting. "harness" has no forecasts yet: when its two files (same format as validation.json / final.json)
+// appear in web/public/data/, the box switches the chart to them automatically.
+const METHODS = {
+  current: { title: "Current model", sub: "Our machine-learning model. Trained on Fingrid and ENTSO-E data from 1 June to 4 October.", files: { validation: "validation", final: "final" } },
+  harness: { title: "Harness prediction", sub: "A second way of predicting. It appears here when its forecasts are added.", files: { validation: "harness_validation", final: "harness_final" } },
+};
+// Input toggles of the current model. Each combination is a separately trained model variant computed by scripts/run_variants.py;
+// the key has one digit per toggle (1 = on, 0 = off), "111" is the normal model served by validation.json / final.json.
+const TOGGLES = [
+  { id: "solar", label: "Solar forecast" },
+  { id: "wind", label: "Wind forecast" },
+  { id: "consumption", label: "Consumption forecast" },
+];
+const SETS = {
+  validation: { label: "Validation 7 Sep – 4 Oct" },
+  final: { label: "Test forecast 5 Oct – 1 Nov" },
+};
 const HELP = {
-  spot_price: "the day-ahead spot price", consumption_forecast_da: "the day-ahead consumption forecast",
+  spot_price: "the day-ahead price of electricity", consumption_forecast_da: "the forecast of electricity consumption",
   wind_forecast_da: "the wind power forecast", solar_forecast_da: "the solar power forecast",
-  residual_load_forecast: "residual load (consumption minus wind and solar)", latest_imbalance_price: "the latest imbalance prices",
-  imbalance_minus_spot_history: "recent imbalance prices relative to spot", mfrr_direction_history: "the recent regulation direction",
-  mfrr_prices_and_activation: "mFRR prices and activations", afrr_activity: "aFRR activity", cross_border_flows: "cross-border flows",
-  neighbour_imbalance_prices: "neighbouring-area imbalance prices", same_time_previous_days_imbalance: "the imbalance price at the same time on previous days",
-  consumption_actual: "measured consumption", production_actual: "measured production", neighbour_load_forecasts: "neighbouring-area load forecasts",
-  fi_ee_capacity: "the Finland–Estonia transfer capacity", calendar: "time of day and weekday", forecast_horizon: "how far ahead",
+  residual_load_forecast: "the electricity demand left after wind and solar", latest_imbalance_price: "the latest imbalance prices",
+  imbalance_minus_spot_history: "how far recent imbalance prices were from the day-ahead price", mfrr_direction_history: "whether the grid recently needed more or less power",
+  mfrr_prices_and_activation: "prices and use of the manual balancing reserve", afrr_activity: "use of the automatic balancing reserve", cross_border_flows: "electricity flows to and from neighbouring countries",
+  neighbour_imbalance_prices: "imbalance prices in Sweden and Estonia", same_time_previous_days_imbalance: "the imbalance price at the same time on previous days",
+  consumption_actual: "measured electricity consumption", production_actual: "measured electricity production", neighbour_load_forecasts: "consumption forecasts of neighbouring countries",
+  fi_ee_capacity: "the transmission capacity between Finland and Estonia", calendar: "the time of day and the weekday", forecast_horizon: "how far ahead the hour is",
 };
 // Data is stored in UTC; everything shown on the page is Finnish time (Europe/Helsinki, incl. the 25 Oct clock change).
 const FI = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Helsinki", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
@@ -22,23 +42,74 @@ const hhmm = (t) => { const p = fiParts(t); return `${p.hour}:${p.minute}`; };
 const mdOf = (t) => { const p = fiParts(t); return `${p.day}/${p.month}/${p.year}`; };   // dd/mm/yyyy
 const isoDayToFi = (d) => `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`;
 const dayOf = (t) => { const p = fiParts(t); return `${p.year}-${p.month}-${p.day}`; };
+const eur = (v) => (v == null ? "–" : `${v.toFixed(1)} €/MWh`);
 
-// chart colours come from the design system tokens
-const C = {
-  grid: "var(--border)", axis: "var(--muted-foreground)", p50: "var(--primary-strong)", band: "var(--chart-2)",
-  actual: "var(--destructive)", earlier: "var(--muted-foreground)", now: "var(--foreground)",
-};
-const tip = { background: "var(--popover)", border: "1px solid var(--border)", borderRadius: "var(--radius)", color: "var(--popover-foreground)" };
-const selectCls = "h-10 rounded-md border border-input bg-card px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30";
+// chart colours: deepened brand orange for the forecast (the plain orange is too light to read on white), red for the real prices
+// (easy to tell apart from the forecast), blue for the range, grey for the earlier forecast
+const C = { grid: "var(--border)", axis: "var(--muted-foreground)", p50: "#c96a00", band: "#46bedc", actual: "var(--destructive)", earlier: "#7d7d7d", now: "var(--foreground)" };
+const selectCls = "h-9 rounded-md border border-input bg-white px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30";
+const solidBtn = "border-2 border-orange-fill bg-orange-fill text-white hover:bg-orange-fill/90";
+const outlineBtn = "border-2 border-navy bg-white text-navy hover:bg-bg-light";
+const h2 = "font-display font-bold uppercase tracking-wide";
+const EMPTY = new Map();
+
+/** Small "i" button that explains something on hover, focus or tap. */
+function Info({ text, align = "center" }) {
+  const id = useId();
+  const pos = align === "left" ? "left-0" : align === "right" ? "right-0" : "left-1/2 -translate-x-1/2";
+  return (
+    <span className="group relative ml-1 inline-flex align-middle">
+      <button type="button" aria-describedby={id} aria-label="More information"
+        className="grid size-4 place-items-center rounded-full border border-muted-foreground text-[10px] font-bold leading-none text-muted-foreground hover:bg-bg-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">i</button>
+      <span id={id} role="tooltip"
+        className={cn("pointer-events-none invisible absolute top-full z-30 mt-2 w-64 rounded-md bg-navy p-3 text-left font-sans text-xs font-normal normal-case leading-snug tracking-normal text-white opacity-0 shadow-lg transition-opacity group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100", pos)}>
+        {text}
+      </span>
+    </span>
+  );
+}
+
+/** What you see when you point at the chart. */
+function ChartTip({ active, payload }) {
+  if (!active || !payload || !payload.length) return null;
+  const r = payload[0].payload;
+  const real = r.realKnown ?? r.realLater;
+  return (
+    <div className="rounded-md border border-border bg-white p-3 text-sm shadow-lg">
+      <p className={cn(h2, "text-base")}>{mdOf(r.ms)} {hhmm(r.ms)}</p>
+      {r.p50 != null && <>
+        <p>Forecast (most likely price): <b>{eur(r.p50)}</b></p>
+        <p>Likely range: {eur(r.p10)} to {eur(r.p90)}</p>
+      </>}
+      {real != null && <p>Real price: <b>{eur(real)}</b></p>}
+      {r.prevP50 != null && <p className="text-muted-foreground">Forecast made 3 h earlier: {eur(r.prevP50)}</p>}
+    </div>
+  );
+}
+
+function Chip({ value, label }) {
+  return (
+    <div className="flex h-[4.25rem] w-28 shrink-0 flex-col items-center justify-center rounded-md bg-bg-light px-2 text-center">
+      <div className="font-serif text-2xl font-light leading-none tabular-nums text-navy">{value}</div>
+      <div className="mt-1 text-xs leading-tight text-muted-foreground">{label}</div>
+    </div>
+  );
+}
 
 function useData(name) {
   const [d, setD] = useState(null);
   const [err, setErr] = useState(null);
+  const [loading, setLoading] = useState(true);
   useEffect(() => {
-    setD(null); setErr(null);
-    fetch(`/data/${name}.json`).then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); }).then(setD).catch((e) => setErr(String(e)));
+    let cancelled = false;                       // ignore an answer that arrives after the choice changed again
+    setLoading(true); setErr(null);              // the previous data stays on screen meanwhile (no blink)
+    fetch(`/data/${name}.json`)
+      .then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then((x) => { if (!cancelled) { setD(x); setLoading(false); } })
+      .catch((e) => { if (!cancelled) { setErr(String(e)); setLoading(false); } });
+    return () => { cancelled = true; };
   }, [name]);
-  return { d, err };
+  return { d, err, loading };
 }
 
 function index(d) {
@@ -51,10 +122,81 @@ function index(d) {
 
 export default function App() {
   const [set, setSet] = useState("validation");
-  const { d, err } = useData(set);
+  const [method, setMethod] = useState("current");
+  const [on, setOn] = useState({ solar: true, wind: true, consumption: true });
+  const key = TOGGLES.map((t) => (on[t.id] ? "1" : "0")).join("");
+  const variant = method === "current" && key !== "111";
+  const [vIndex, setVIndex] = useState(null);
+  useEffect(() => { fetch("/data/variants/index.json").then((r) => (r.ok ? r.json() : null)).then(setVIndex).catch(() => setVIndex(null)); }, []);
+  const { d, err, loading } = useData(variant ? `variants/${set}_${key}` : METHODS[method].files[set]);
   const ix = useMemo(() => (d ? index(d) : null), [d]);
-  const [origin, setOrigin] = useState(null);
-  useEffect(() => { if (ix) setOrigin(ix.origins[0]); }, [ix]);
+  // Position in the list of forecast hours. The integer part is a forecast hour, the fraction is the time in between: the chart slides
+  // and blends the two neighbouring forecasts, so stepping and playing look smooth even though forecasts exist only once an hour.
+  const TICK = 33;                                   // ms between animation frames (about 30 per second)
+  const [fpos, setFpos] = useState(0);
+  const fposRef = useRef(0), targetRef = useRef(0);
+  const [playing, setPlaying] = useState(false);
+  const playingRef = useRef(false);
+  const [speed, setSpeed] = useState(1);              // forecast hours per second while playing
+  const speedRef = useRef(1);
+  speedRef.current = speed;
+  const [animating, setAnimating] = useState(false);  // gliding towards targetRef after a button click
+  const last = ix ? ix.origins.length - 1 : 0;
+  const clamp = (v) => Math.max(0, Math.min(last, v));
+  const apply = (v) => { fposRef.current = v; setFpos(v); };
+  const goTo = (i, glide) => {
+    const t = clamp(i);
+    playingRef.current = false; setPlaying(false);
+    targetRef.current = t;
+    if (glide) setAnimating(true); else apply(t);
+  };
+  const step = (k) => goTo(Math.round(targetRef.current) + k, true);
+  const togglePlay = () => {
+    if (playingRef.current) { goTo(Math.round(fposRef.current), true); return; }
+    if (fposRef.current >= last - 0.001) apply(0);
+    playingRef.current = true; setPlaying(true);
+  };
+  const pos = ix ? Math.max(0, Math.min(last, Math.round(fpos))) : 0;
+  const lastOriginRef = useRef(null);
+  // a new forecast file: keep the hour if it exists there (switches, method), otherwise start from the beginning
+  useEffect(() => {
+    if (!ix) return;
+    if (!lastOriginRef.current || ix.origins.indexOf(lastOriginRef.current) < 0) { goTo(0, false); }
+  }, [ix]);                                             // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (ix) lastOriginRef.current = ix.origins[pos]; });
+  // the animation clock only runs while playing or gliding
+  useEffect(() => {
+    if (!ix || !(playing || animating)) return undefined;
+    const id = setInterval(() => {
+      let f = fposRef.current;
+      if (playingRef.current) {
+        f += (speedRef.current * TICK) / 1000;
+        if (f >= last) { f = last; playingRef.current = false; setPlaying(false); }
+        targetRef.current = f; apply(f);
+      } else {
+        const diff = targetRef.current - f;
+        if (Math.abs(diff) < 0.004) { apply(targetRef.current); setAnimating(false); } else apply(f + diff * 0.28);
+      }
+    }, TICK);
+    return () => clearInterval(id);
+  }, [ix, last, playing, animating]);                   // eslint-disable-line react-hooks/exhaustive-deps
+  const rowCache = useMemo(() => new Map(), [ix]);
+  // Fixed price axis for the whole period, so the numbers on the left never move while time moves or plays: from the 1st percentile of the
+  // low end to the 95th percentile of the high end of the likely range (97th for real prices), rounded outwards to steps of 50 EUR/MWh.
+  // Rare larger values run off the chart (the tooltip still shows them).
+  const yAxis = useMemo(() => {
+    if (!d) return null;
+    const col = (c) => { const i = d.cols.indexOf(c); return i < 0 ? [] : d.rows.map((r) => r[i]).filter((v) => v != null).sort((a, b) => a - b); };
+    const pick = (a, p) => (a.length ? a[Math.min(a.length - 1, Math.floor(p * (a.length - 1)))] : null);
+    const real = col("actual_imbalance_price");
+    const lows = [pick(col("p10"), 0.01), pick(real, 0.01)].filter((v) => v != null);
+    const highs = [pick(col("p90"), 0.95), pick(real, 0.97)].filter((v) => v != null);
+    const step = 50;
+    const lo = Math.min(0, Math.floor(Math.min(...lows) / step) * step), hi = Math.max(step, Math.ceil(Math.max(...highs) / step) * step);
+    const ticks = [];
+    for (let t = lo; t <= hi; t += step) ticks.push(t);
+    return { lo, hi, ticks };
+  }, [d]);
   const actualAt = useMemo(() => {
     const m = new Map();
     if (!d || !d.hasActuals) return m;
@@ -63,60 +205,113 @@ export default function App() {
     return m;
   }, [d]);
 
+  // render helpers (plain functions, not inner components: inner components would remount the controls on every render)
   const shell = (children) => (
     <main className="relative min-h-screen overflow-hidden bg-background font-sans text-foreground lg:h-screen">
-      {/* the brand wave is the page background */}
+      {/* the brand wave as a calm light-blue background */}
       <div className="pointer-events-none fixed inset-0 z-0" aria-hidden="true">
-        <Hills tone="sky" className="opacity-80" />
+        <Hills tone="sky" className="opacity-60" />
         <Hills tone="primary" className="h-1/5 opacity-90" />
       </div>
-      <div className="relative z-10 flex min-h-screen flex-col gap-3 p-4 lg:h-screen">{children}</div>
+      <div className={cn("relative z-10 mx-auto flex min-h-screen w-full max-w-[1500px] flex-col gap-3 p-4 transition-opacity lg:h-screen", loading && "opacity-70")}>{children}</div>
     </main>
   );
   const header = (
-    <header className="flex flex-wrap items-center justify-between gap-3">
-      <div className="flex items-center gap-3">
-        <Badge variant="primary">Turku Energia</Badge>
-        <h1 className="font-serif text-3xl font-light leading-none">Imbalance price forecast <span className="text-muted-foreground">· next 10 h</span></h1>
+    <div className="flex flex-col gap-3">
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="font-display text-4xl font-bold uppercase leading-none tracking-wide">Imbalance price forecast<span className="text-brand">.</span></h1>
+          <p className="mt-1 text-sm text-muted-foreground">Turku Energia. The next 10 hours, quarter-hour by quarter-hour.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm text-muted-foreground">Period
+            <Info align="right" text="Validation is a practice month with known answers: the model only used data published before 7 September, so you can compare its forecast with the real prices. The test forecast covers the month the organisers will score; its real prices are not known to us, so only the forecast is shown." />
+          </span>
+          {Object.entries(SETS).map(([k, v]) => (
+            <Button key={k} size="sm" variant={set === k ? "primary" : "outline"} className={set === k ? solidBtn : outlineBtn} onClick={() => setSet(k)}>{v.label}</Button>
+          ))}
+        </div>
+      </header>
+      {/* the two ways to predict: the highlighted box decides what the chart shows */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        {Object.entries(METHODS).map(([k, m]) => {
+          const active = method === k;
+          return (
+            <button key={k} type="button" aria-pressed={active} onClick={() => setMethod(k)}
+              className={cn("flex flex-col items-start rounded-lg border-2 border-b-4 px-5 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                active ? "border-orange-fill border-b-brand bg-orange-fill text-white shadow-md" : "border-grey-light bg-white/90 text-foreground hover:bg-bg-light")}>
+              <span className="font-display text-xl font-bold uppercase tracking-wide">{m.title}</span>
+              <span className={cn("text-sm", active ? "text-white/90" : "text-muted-foreground")}>{m.sub}</span>
+            </button>
+          );
+        })}
       </div>
-      <div className="flex flex-wrap gap-2">
-        {Object.entries(SETS).map(([k, v]) => (
-          <Button key={k} size="sm" variant={set === k ? "primary" : "outline"} className={set === k ? "" : "bg-card/80"} onClick={() => setSet(k)}>{v}</Button>
-        ))}
+    </div>
+  );
+  const message = (title, children) => (
+    <Card className="flex flex-1 items-center justify-center bg-white/90 p-8 text-center">
+      <div className="max-w-xl space-y-3">
+        <p className={cn(h2, "text-3xl")}>{title}.</p>
+        <div className="text-muted-foreground">{children}</div>
       </div>
-    </header>
+    </Card>
   );
+  const notConnected = message(`${METHODS[method].title} is not connected yet`, <p>
+    Its forecasts have not been added to the repo. When they are, put them in <code>web/public/data/{METHODS[method].files[set]}.json</code>
+    {" "}(same format as <code>{METHODS.current.files[set]}.json</code>) and reload this page. The chart then appears here automatically.</p>);
+  const notComputed = message("This combination has not been computed yet", <div className="space-y-3">
+    <p>Run <code>uv run scripts/run_variants.py</code> to create the forecasts for every on/off combination of the inputs, then reload.</p>
+    <Button size="sm" variant="outline" className={outlineBtn} onClick={() => setOn({ solar: true, wind: true, consumption: true })}>Switch all inputs on</Button></div>);
+  if (err && method !== "current") return shell(<>{header}{notConnected}</>);
+  if (err && variant) return shell(<>{header}{notComputed}</>);
+  if (err) return shell(<>{header}
+    <Alert variant="destructive"><div><AlertTitle>Could not load the forecast</AlertTitle>/data/{set}.json ({err}). Run <code>uv run scripts/export_web_data.py</code> first.</div></Alert></>);
+  if (!ix) return shell(<>{header}<p>Loading…</p></>);
 
-  if (err) return (
-    shell(<><div>{header}</div>
-      <Alert variant="destructive"><div><AlertTitle>Could not load the forecast</AlertTitle>/data/{set}.json ({err}). Run <code>uv run scripts/export_web_data.py</code> first.</div></Alert></>)
-  );
-  if (!ix || !origin || !ix.origins.includes(origin)) return shell(<><div>{header}</div><p>Loading…</p></>);
-
+  const origin = ix.origins[pos];
   const rows = ix.get(origin);
   const hasAct = d.hasActuals;
   const days = [...new Set(ix.origins.map(dayOf))];
-  const pos = ix.origins.indexOf(origin);
-  const step = (k) => setOrigin(ix.origins[Math.min(ix.origins.length - 1, Math.max(0, pos + k))]);
 
-  const Q = 15 * 60 * 1000, o0 = Date.parse(origin);
+  const Q = 15 * 60 * 1000, HOUR = 4 * Q;
+  const o0 = Date.parse(origin);
   const iso = (ms) => new Date(ms).toISOString().slice(0, 19) + "Z";
-  // past: (a) real prices already published at the origin (published ~60 min after the quarter-hour ends),
-  // (b) real prices of the unpublished last hour, drawn dashed as "revealed later", (c) the forecast made 3 h earlier
-  const prevOrigin = iso(o0 - 3 * 60 * Q / 15);
-  const prevRows = ix.origins.includes(prevOrigin) ? ix.get(prevOrigin) : [];
-  const prevAt = new Map(prevRows.map((r) => [r.delivery_start_utc, r]));
-  const lastKnownMs = o0 - 75 * 60 * 1000;
-  const past = [];
-  for (let k = 12; k >= 1; k--) {
-    const ms = o0 - k * Q, key = iso(ms), pr = prevAt.get(key);
-    past.push({ key, t: hhmm(key),
-      pastActual: ms <= lastKnownMs ? (actualAt.get(key) ?? null) : null,
-      pastLater: ms >= lastKnownMs ? (actualAt.get(key) ?? null) : null,
-      prevBase: pr ? pr.p10 : null, prevWidth: pr ? pr.p90 - pr.p10 : null, prevP50: pr ? pr.p50 : null });
+  // Forecast rows of origin k by delivery time (cached).
+  const forecastAt = (k) => {
+    if (k < 0 || k > last) return EMPTY;
+    let m = rowCache.get(k);
+    if (!m) { m = new Map(ix.get(ix.origins[k]).map((r) => [Date.parse(r.delivery_start_utc), r])); rowCache.set(k, m); }
+    return m;
+  };
+  // Smooth chart: T is the (possibly in-between) time the forecast was made. The two neighbouring forecasts k0 and k1 are blended
+  // with weight sf, and so are the forecasts made 3 h earlier. The time axis slides with T.
+  const f = clamp(fpos), k0 = Math.floor(f), k1 = Math.min(k0 + 1, last), sf = f - k0;
+  const oMs = (k) => Date.parse(ix.origins[k]);
+  const T = oMs(k0) + sf * (oMs(k1) - oMs(k0));
+  const A = forecastAt(k0), B = forecastAt(k1), EA = forecastAt(k0 - 3), EB = forecastAt(k1 - 3);
+  const blend = (ma, mb, ms, key2) => {
+    const a2 = ma.get(ms), b2 = mb.get(ms);
+    if (a2 && b2) return a2[key2] + (b2[key2] - a2[key2]) * sf;
+    const r = b2 || a2;
+    return r ? r[key2] : null;
+  };
+  const knownUntil = T - 75 * 60 * 1000;               // real prices are published about 75 min after the quarter-hour starts
+  const lastKnown = Math.floor(knownUntil / Q) * Q;
+  const chart = [];
+  for (let ms = Math.ceil((T - 3 * HOUR - Q) / Q) * Q; ms <= T + 10 * HOUR; ms += Q) {
+    const fut = ms >= T, past = ms < T;
+    const p10 = fut ? blend(A, B, ms, "p10") : null, p90 = fut ? blend(A, B, ms, "p90") : null;
+    const e10 = past ? blend(EA, EB, ms, "p10") : null, e90 = past ? blend(EA, EB, ms, "p90") : null;
+    const real = actualAt.get(iso(ms)) ?? null;
+    chart.push({
+      ms,
+      base: p10, width: p10 == null ? null : p90 - p10, p10, p50: fut ? blend(A, B, ms, "p50") : null, p90,
+      prevBase: e10, prevWidth: e10 == null ? null : e90 - e10, prevP50: past ? blend(EA, EB, ms, "p50") : null,
+      realKnown: ms <= knownUntil ? real : null, realLater: ms >= lastKnown ? real : null,
+    });
   }
-  const chart = [...past, ...rows.map((r) => ({ key: r.delivery_start_utc, t: hhmm(r.delivery_start_utc), base: r.p10, width: r.p90 - r.p10, p10: r.p10, p50: r.p50, p90: r.p90,
-    actual: hasAct ? r.actual_imbalance_price : null }))];
+  const ticks = [];
+  for (let t = Math.ceil((T - 3 * HOUR) / HOUR) * HOUR; t <= T + 9.75 * HOUR; t += HOUR) ticks.push(t);
   const withAct = rows.filter((r) => hasAct && r.actual_imbalance_price != null);
   const mae = withAct.length ? withAct.reduce((s, r) => s + Math.abs(r.p50 - r.actual_imbalance_price), 0) / withAct.length : null;
   const cov = withAct.length ? withAct.filter((r) => r.actual_imbalance_price >= r.p10 && r.actual_imbalance_price <= r.p90).length / withAct.length : null;
@@ -125,78 +320,102 @@ export default function App() {
   const hiRow = rows.reduce((a, r) => (r.p_spike_high > a.p_spike_high ? r : a), rows[0]);
   const drivers = (rows[0].top_drivers || "").split(";").filter(Boolean);
 
-  const dirText = upShare > 0.55 ? "Up-regulation more likely (price above spot)" : upShare < 0.45 ? "Down-regulation more likely (price below spot)" : "Direction is uncertain";
+  const dirText = upShare > 0.55 ? "The grid probably needs more power: prices lean above the day-ahead price."
+    : upShare < 0.45 ? "The grid probably needs less power: prices lean below the day-ahead price."
+      : "It is unclear whether the grid needs more or less power.";
   const lo50 = Math.round(Math.min(...rows.map((r) => r.p50))), hi50 = Math.round(Math.max(...rows.map((r) => r.p50)));
-  const summary = `${dirText}. Median ${lo50} to ${hi50} EUR/MWh. ` +
-    (maxHi >= 0.3 ? `High-spike risk peaks at ${(maxHi * 100).toFixed(0)}% around ${hhmm(hiRow.delivery_start_utc)}.` : "No elevated spike risk.");
-  const stat = "[&>span:nth-child(2)]:text-3xl";
+  const spikeText = maxHi >= 0.3 ? `High price spike possible around ${hhmm(hiRow.delivery_start_utc)} (${(maxHi * 100).toFixed(0)} %).` : "No unusual price spikes expected.";
+  const priceText = `Most likely price ${lo50} to ${hi50} €/MWh. ${spikeText}`;
+  const driversText = `Main drivers: ${drivers.map((x, i) => `${i + 1}. ${HELP[x] || x.replaceAll("_", " ")}`).join("; ")}.`;
+  const pct = (v) => `${(v * 100).toFixed(0)} %`;
 
   return shell(
     <>
       {header}
-      <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[17rem_1fr]">
-        {/* left: the key numbers, short summary, drivers */}
-        <aside className="flex min-h-0 flex-col gap-3">
-          <div className="grid grid-cols-2 gap-2">
-            {hasAct && <Card className="bg-card/90 p-3 backdrop-blur"><Stat className={stat} label="Error p50" value={mae == null ? "–" : mae.toFixed(1)} unit="€" /></Card>}
-            {hasAct && <Card className="bg-card/90 p-3 backdrop-blur"><Stat className={stat} label="In band" value={cov == null ? "–" : (cov * 100).toFixed(0) + "%"} /></Card>}
-            <Card className="bg-card/90 p-3 backdrop-blur"><Stat className={stat} label="P(high spike)" value={(maxHi * 100).toFixed(0) + "%"} trend={maxHi >= 0.3 ? "up" : "neutral"} /></Card>
-            <Card className="bg-card/90 p-3 backdrop-blur"><Stat className={stat} label="P(low spike)" value={(maxLo * 100).toFixed(0) + "%"} /></Card>
-            <Card className="col-span-2 bg-card/90 p-3 backdrop-blur"><Stat className={stat} label="P(up-regulation)" value={(upShare * 100).toFixed(0) + "%"} /></Card>
-          </div>
-          <Alert variant={maxHi >= 0.3 || maxLo >= 0.4 ? "warning" : "info"} className="p-3">
-            <div><AlertTitle className="text-xs">Summary</AlertTitle><p className="mt-1 leading-snug">{summary}</p></div>
-          </Alert>
-          <Card className="min-h-0 flex-1 overflow-auto bg-card/90 p-3 backdrop-blur">
-            <p className="font-display text-xs font-bold uppercase tracking-wide text-muted-foreground">What drives this forecast</p>
-            <ol className="mt-2 space-y-2">
-              {drivers.map((x, i) => (
-                <li key={x} className="flex items-start gap-2 text-sm"><Badge variant="primary">{i + 1}</Badge><span className="leading-snug">{HELP[x] || x.replaceAll("_", " ")}</span></li>
-              ))}
-            </ol>
-          </Card>
-        </aside>
+      {/* one slim strip: what it means, the main drivers, the key numbers */}
+      <Card className="flex flex-wrap items-center gap-x-6 gap-y-3 border-l-4 border-l-brand bg-white/95 p-3 lg:h-28 lg:flex-nowrap lg:overflow-visible">
+        <div className="min-w-64 flex-1 lg:min-w-0">
+          <p className="line-clamp-1 leading-snug" title={dirText}><b className={cn(h2, "mr-1 text-base")}>Summary.</b>{dirText}</p>
+          <p className="mt-1 line-clamp-1 leading-snug" title={priceText}>{priceText}</p>
+          <p className="mt-1 line-clamp-2 text-sm leading-snug text-muted-foreground" title={driversText}>{driversText}</p>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <Chip value={pct(maxHi)} label="high price spike" />
+          <Chip value={pct(maxLo)} label="low price spike" />
+          <Chip value={pct(upShare)} label="grid needs more power" />
+          {hasAct && <Chip value={mae == null ? "–" : mae.toFixed(1)} label="average error, €/MWh" />}
+          {hasAct && <Chip value={cov == null ? "–" : pct(cov)} label="real price in range" />}
+          <Info align="right" text="Price spikes: the highest chance, in any quarter-hour of the next 10 hours, that the price ends up more than 50 €/MWh above (high) or below (low) the day-ahead price. Grid needs more power: the average chance that the power system needs extra electricity, which pushes the price up. Average error and real price in range appear when the real prices are known: how far the forecast was from the real price, and how often the real price stayed inside the blue area (about 8 times out of 10 is the goal)." />
+        </div>
+      </Card>
 
-        {/* right: the chart, as big as possible, with the time controls above it */}
-        <Card className="flex min-h-[26rem] flex-col bg-card/95 p-4 backdrop-blur">
-          <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" variant="outline" onClick={() => step(-24)}>◀ 1 day</Button>
-            <Button size="sm" variant="outline" onClick={() => step(-1)}>◀ 1 h</Button>
-            <select aria-label="date" className={selectCls} value={dayOf(origin)} onChange={(e) => { const o = ix.origins.find((x) => dayOf(x) === e.target.value); if (o) setOrigin(o); }}>
+      {/* the chart in the middle, as big as possible */}
+      <Card className="flex min-h-[26rem] flex-1 flex-col bg-white/95 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <h2 className={cn(h2, "text-2xl")}>Price forecast.
+            <Info align="left" text="Orange line: the most likely price in each quarter-hour. Blue area: the range the price should stay in, 8 times out of 10. Red line: the real price, when it is known. Grey dotted line: the forecast made 3 hours earlier. The vertical line marks the moment the forecast was made. The price axis is fixed for the whole period, so its numbers never move; rare very high prices run off the top of the chart, point at the line to see them." />
+          </h2>
+          <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
+            <Button size="sm" variant="outline" className={outlineBtn} onClick={() => step(-24)}>◀ 1 day</Button>
+            <Button size="sm" variant="outline" className={outlineBtn} onClick={() => step(-1)}>◀ 1 h</Button>
+            <select aria-label="date" className={selectCls} value={dayOf(origin)} onChange={(e) => { const i = ix.origins.findIndex((x) => dayOf(x) === e.target.value); if (i >= 0) goTo(i, false); }}>
               {days.map((dd) => <option key={dd} value={dd}>{isoDayToFi(dd)}</option>)}
             </select>
-            <input type="range" aria-label="whole period" className="min-w-32 flex-1 accent-primary" min={0} max={ix.origins.length - 1} value={pos} onChange={(e) => setOrigin(ix.origins[+e.target.value])} />
-            <b data-testid="when" className="font-display text-lg">{mdOf(origin)} {hhmm(origin)}</b>
-            <Button size="sm" variant="outline" onClick={() => step(1)}>1 h ▶</Button>
-            <Button size="sm" variant="outline" onClick={() => step(24)}>1 day ▶</Button>
+            <input type="range" aria-label="whole period" className="min-w-32 max-w-md flex-1 accent-brand" min={0} max={last} step="any" value={fpos} onChange={(e) => goTo(+e.target.value, false)} />
+            <b data-testid="when" className="font-display text-xl tabular-nums text-navy">{mdOf(origin)} {hhmm(origin)}</b>
+            <Button size="sm" variant="outline" className={outlineBtn} onClick={() => step(1)}>1 h ▶</Button>
+            <Button size="sm" variant="outline" className={outlineBtn} onClick={() => step(24)}>1 day ▶</Button>
+            <Button size="sm" variant="primary" className={cn(solidBtn, "w-24")} onClick={togglePlay}>{playing ? "❚❚ Pause" : "▶ Play"}</Button>
+            <Button size="sm" variant="outline" className={cn(outlineBtn, "w-14")} aria-label={`Playback speed ${speed} hours per second`}
+              onClick={() => setSpeed(speed === 1 ? 3 : speed === 3 ? 10 : 1)}>{speed}×</Button>
           </div>
-          <div className="mt-2 min-h-72 flex-1">
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={chart} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-                <CartesianGrid stroke={C.grid} strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="key" interval={3} tickFormatter={hhmm} stroke={C.axis} fontSize={12} />
-                <YAxis stroke={C.axis} fontSize={12} unit=" €" width={56} />
-                <Tooltip contentStyle={tip} labelFormatter={(l) => `${mdOf(l)} ${hhmm(l)}`} />
-                <Area dataKey="prevBase" stackId="c" stroke="none" fill="transparent" legendType="none" isAnimationActive={false} />
-                <Area dataKey="prevWidth" stackId="c" stroke="none" fill={C.earlier} fillOpacity={0.18} name="earlier forecast band" isAnimationActive={false} />
-                <Line dataKey="prevP50" stroke={C.earlier} strokeWidth={2} strokeDasharray="2 3" dot={false} name="earlier forecast (3 h before)" isAnimationActive={false} />
-                <Area dataKey="base" stackId="b" stroke="none" fill="transparent" legendType="none" isAnimationActive={false} />
-                <Area dataKey="width" stackId="b" stroke="none" fill={C.band} fillOpacity={0.35} name="p10–p90 band" isAnimationActive={false} />
-                <Line dataKey="p50" stroke={C.p50} strokeWidth={3} dot={false} name="forecast p50" isAnimationActive={false} />
-                {hasAct && <Line dataKey="pastActual" stroke={C.actual} strokeWidth={2} dot={false} connectNulls name="actual price (known then)" isAnimationActive={false} />}
-                {hasAct && <Line dataKey="actual" stroke={C.actual} strokeDasharray="5 3" strokeWidth={2} dot={false} name="actual price (revealed later)" isAnimationActive={false} />}
-                {hasAct && <Line dataKey="pastLater" stroke={C.actual} strokeDasharray="5 3" strokeWidth={2} dot={false} connectNulls legendType="none" isAnimationActive={false} />}
-                <ReferenceLine x={rows[0].delivery_start_utc} stroke={C.now} strokeWidth={2} label={{ value: "now", position: "insideTopLeft", fill: "var(--foreground)", fontSize: 12 }} />
-                <ReferenceLine y={0} stroke={C.axis} />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-              </ComposedChart>
-            </ResponsiveContainer>
+        </div>
+        {method === "current" && (
+          <div className="mt-2 flex min-h-11 flex-wrap items-center gap-x-5 gap-y-2 border-t border-grey-light pt-2" data-testid="toggles">
+            <span className="text-sm text-muted-foreground">Forecast inputs from Fingrid, published the day before:</span>
+            {TOGGLES.map((t) => (
+              <label key={t.id} className="flex cursor-pointer items-center gap-2 text-sm">
+                <button type="button" role="switch" aria-checked={on[t.id]} aria-label={t.label} onClick={() => setOn({ ...on, [t.id]: !on[t.id] })}
+                  className={cn("relative h-6 w-11 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", on[t.id] ? "bg-orange-fill" : "bg-grey-brand")}>
+                  <span className={cn("absolute top-0.5 size-5 rounded-full bg-white shadow transition-all", on[t.id] ? "left-[1.375rem]" : "left-0.5")} />
+                </button>
+                <span><b className="font-medium">{t.label}</b> <span className="text-muted-foreground">{on[t.id] ? "on" : "off"}</span></span>
+              </label>
+            ))}
+            {vIndex && vIndex.metrics && vIndex.metrics[key] && vIndex.metrics["111"] && (
+              <span className="text-sm text-muted-foreground" data-testid="variant-metrics">
+                Average error on the validation month: <b className="text-foreground">{vIndex.metrics[key].mae.toFixed(1)}</b> €/MWh
+                {key !== "111" && <> ({(vIndex.metrics[key].mae - vIndex.metrics["111"].mae >= 0 ? "+" : "") + (vIndex.metrics[key].mae - vIndex.metrics["111"].mae).toFixed(2)} vs all inputs on)</>}
+              </span>
+            )}
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Gap before "now": prices are published about 1 h after each quarter-hour, so at {hhmm(origin)} the latest known price starts {hhmm(iso(o0 - 75 * 60 * 1000))}; the forecast starts one hour blind.
-          </p>
-        </Card>
-      </div>
+        )}
+        <div className="mt-2 min-h-72 flex-1">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={chart} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+              <CartesianGrid stroke={C.grid} strokeDasharray="3 3" vertical={false} />
+              <XAxis type="number" dataKey="ms" domain={[T - 3 * HOUR, T + 9.75 * HOUR]} allowDataOverflow ticks={ticks} tickFormatter={hhmm} stroke={C.axis} fontSize={12} />
+              <YAxis domain={yAxis ? [yAxis.lo, yAxis.hi] : ["auto", "auto"]} ticks={yAxis ? yAxis.ticks : undefined} allowDataOverflow stroke={C.axis} fontSize={12} unit=" €" width={56} />
+              <Tooltip content={<ChartTip />} />
+              <Area dataKey="prevBase" stackId="c" stroke="none" fill="transparent" legendType="none" isAnimationActive={false} />
+              <Area dataKey="prevWidth" stackId="c" stroke="none" fill={C.earlier} fillOpacity={0.15} name="Range of the earlier forecast" isAnimationActive={false} />
+              <Line dataKey="prevP50" stroke={C.earlier} strokeWidth={2} strokeDasharray="2 3" dot={false} name="Forecast made 3 h earlier" isAnimationActive={false} />
+              <Area dataKey="base" stackId="b" stroke="none" fill="transparent" legendType="none" isAnimationActive={false} />
+              <Area dataKey="width" stackId="b" stroke="none" fill={C.band} fillOpacity={0.28} name="Likely range (8 times out of 10)" isAnimationActive={false} />
+              <Line dataKey="p50" stroke={C.p50} strokeWidth={3} dot={false} name="Forecast (most likely price)" isAnimationActive={false} />
+              {hasAct && <Line dataKey="realKnown" stroke={C.actual} strokeWidth={2} dot={false} name="Real price (already published)" isAnimationActive={false} />}
+              {hasAct && <Line dataKey="realLater" stroke={C.actual} strokeDasharray="5 3" strokeWidth={2} dot={false} name="Real price (published later)" isAnimationActive={false} />}
+              <ReferenceLine x={T} stroke={C.now} strokeWidth={2} label={{ value: "Forecast made", position: "insideTopLeft", fill: "var(--foreground)", fontSize: 12 }} />
+              <ReferenceLine y={0} stroke={C.axis} />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Gap before the vertical line: real prices are published about 1 hour after each quarter-hour ends, so at {hhmm(origin)} the latest price the model could see
+          starts at {hhmm(iso(o0 - 75 * 60 * 1000))}. The forecast starts one hour blind. Times are Finnish time.
+        </p>
+      </Card>
     </>
   );
 }
