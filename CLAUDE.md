@@ -93,7 +93,7 @@ Run backend commands from `backend/` (`uv sync` first; macOS needs `brew install
 - Keys (`FINGRID_API_KEY`, `ENTSOE_API_KEY`) live in the root `.env`; the Settings box can save them there. Never print or commit them; the server never returns them.
 - Audited 8 Nov: `run_python` runs with a scrubbed environment (no API keys) and, on macOS, inside a sandbox. The main risk is prompt injection from fetched web data.
 - Open decision: set `HARNESS_PYTHON_NETWORK=0` (cuts network for model code; then `zones.cf()` stops working).
-- `HARNESS_AUTO_RECALC=0` stops alert-triggered runs. Known unfixed bug: `nordpool_price` ignores its start/end parameters.
+- `HARNESS_AUTO_RECALC=0` stops alert-triggered runs. The imbalance prompt gives all 24 hourly rows the same spot level (latest spot + spread) and ignores the known day-ahead prices: open design question for the user and teammate.
 - Do not change the progress line format `[turn k/n]`, `[tool]`, `[result]`, `[think]`, `[done]`, `[stop]`: `frontend/src/features/harness/lib/progressSteps.ts` parses it.
 - Hosted demo: set `NEXT_PUBLIC_HIDE_HARNESS=true` (the Harness tab and proxy disappear).
 

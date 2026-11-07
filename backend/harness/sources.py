@@ -50,8 +50,10 @@ def _fingrid(dataset: int, *, back: int = DEFAULT_LOOKBACK_HOURS) -> dict[str, A
 # Named sources the model may pull from. {placeholders} are filled by get_data(); hosts outside this set are refused.
 SOURCES: dict[str, dict[str, Any]] = {
     "nordpool_price": {  # day-ahead spot price, every area, keyless
-        "url": "https://dashboard.elering.ee/api/nps/price",
-        "params": "start,end = ISO8601 to window a past day (optional)",
+        "url": "https://dashboard.elering.ee/api/nps/price?start={start}&end={end}",
+        "params": "start,end = ISO8601 UTC (optional; default: 1 hour ago to 48 hours ahead, every published hour)",
+        "back": 1,  # hours before now when no start is given
+        "ahead": 48,  # hours after now when no end is given
         "note": "same Nord Pool spot for all areas; Fingrid sells no price in open data",
     },
     "spot_price_fi": {  # Finland current spot, keyless
@@ -239,9 +241,12 @@ def fetch_url(url: str, headers: dict[str, str] | None = None) -> str:
 
 
 def _with_default_window(spec: dict[str, Any], values: dict[str, Any]) -> dict[str, Any]:
-    """Fill a missing start/end of a time-windowed source with the last few hours up to now."""
+    """Fill a missing start/end of a windowed source: the last few hours up to now, or up to `ahead` hours later."""
     now = datetime.now(UTC)
-    window = {"start": iso_utc(now - timedelta(hours=spec.get("back", DEFAULT_LOOKBACK_HOURS))), "end": iso_utc(now)}
+    window = {
+        "start": iso_utc(now - timedelta(hours=spec.get("back", DEFAULT_LOOKBACK_HOURS))),
+        "end": iso_utc(now + timedelta(hours=spec.get("ahead", 0))),
+    }
     return {**{name: text for name, text in window.items() if "{" + name + "}" in spec["url"]}, **values}
 
 

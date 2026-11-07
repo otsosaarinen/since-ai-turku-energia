@@ -44,10 +44,12 @@ PROVIDER_MODELS = {  # "" -> ask the running server what it loaded
     "openrouter": ("OPENROUTER_MODEL", "openai/gpt-4o-mini"),
 }
 DEFAULT_PROVIDER = "ollama"
-MAX_TURNS = 10  # tool-call budget per question
+MAX_TURNS = 10  # model turns per question
+MAX_TOOL_CALLS = 10  # hard cap on tool calls per question: one turn may ask for several at once
 MAX_BROKEN_CALLS = 4  # cut-off tool calls get their own small budget; they do not use up the tool turns
 PROGRESS_ARGS_CHARS = 400
 PROGRESS_RESULT_CHARS = 200
+TOOL_BUDGET_USED_UP = "Error: the tool-call budget for this question is used up. Answer now with what you already have."
 BROKEN_CALL_HINT = (
     "Your last tool call was cut off and could not be read. Try again with a much shorter call: "
     "at most 40 lines of Python and no long data lists."
@@ -124,10 +126,19 @@ def _one_line(text: str) -> str:
     return text.replace("\r", " ").replace("\n", " ")
 
 
-def _run_tool_calls(message: Any, messages: list[Any], progress: Progress) -> None:
-    """Execute every tool call of `message` and append the results for the model."""
+def _run_tool_calls(message: Any, messages: list[Any], progress: Progress, calls_left: int) -> int:
+    """Run the tool calls of `message` and append the results for the model; returns how many were run.
+
+    Calls beyond `calls_left` are not run: they get an error result (the API wants an answer for every call id).
+    """
     messages.append(message)
+    executed = 0
     for call in message.tool_calls:
+        if executed >= calls_left:
+            progress(f"[result] {len(TOOL_BUDGET_USED_UP)} characters: {TOOL_BUDGET_USED_UP!r}")
+            messages.append({"role": "tool", "tool_call_id": call.id, "content": TOOL_BUDGET_USED_UP})
+            continue
+        executed += 1
         progress(f"[tool] {call.function.name} {_one_line(call.function.arguments[:PROGRESS_ARGS_CHARS])}")
         try:
             arguments = json.loads(call.function.arguments)
@@ -137,12 +148,13 @@ def _run_tool_calls(message: Any, messages: list[Any], progress: Progress) -> No
             result = call_tool(call.function.name, arguments)
         progress(f"[result] {len(result)} characters: {result[:PROGRESS_RESULT_CHARS]!r}")
         messages.append({"role": "tool", "tool_call_id": call.id, "content": result})
+    return executed
 
 
 def chat(client: OpenAI, model: str, messages: list[Any], progress: Progress) -> str:
     """One question: loop model turn -> tool calls -> model turn until it answers or the budgets run out."""
-    turn = broken = 0
-    while turn < MAX_TURNS:
+    turn = broken = calls_used = 0
+    while turn < MAX_TURNS and calls_used < MAX_TOOL_CALLS:
         turn += 1
         progress(f"[turn {turn}/{MAX_TURNS}] asking the model")
         try:
@@ -164,13 +176,13 @@ def chat(client: OpenAI, model: str, messages: list[Any], progress: Progress) ->
         if reasoning:  # one JSON line for the website's "thinking" windows
             progress("[think] " + json.dumps(reasoning))
         if message.tool_calls:
-            _run_tool_calls(message, messages, progress)
+            calls_used += _run_tool_calls(message, messages, progress, MAX_TOOL_CALLS - calls_used)
             continue
         progress("[done] final answer received")
         answer = message.content or ""
         messages.append({"role": "assistant", "content": answer})
         return answer
-    progress("[stop] tool turn budget used up")
+    progress("[stop] tool turn budget used up" if turn >= MAX_TURNS else "[stop] tool call budget used up")
     return "(max tool turns reached)"
 
 

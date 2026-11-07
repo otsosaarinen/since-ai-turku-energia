@@ -87,7 +87,8 @@ Keep the model small and local, and do not run the harness where you cannot affo
 
 - `memory.json` (kept when a forecast row moves over 3 % between runs, last 200 entries) is written but nothing reads it.
 - The `ollama` and `openrouter` providers and the interactive prompt in `agent.py` work only from the command line.
-- The `nordpool_price` source is documented as taking `start,end`, but its URL has no placeholders, so they are ignored.
+- The imbalance prompt sets every hourly forecast to the latest spot price plus a spread, so the 24 hourly rows share one spot level.
+  The published day-ahead prices for those hours are known and are deliberately not used (teammate's design, 7 Nov); worth revisiting.
 
 ## Origin and change log (project rule: every change to upstream code is listed here)
 
@@ -106,3 +107,7 @@ the author is a teammate). Local changes, in order:
   its output is cut at 20,000 characters; `fetch_url` is https-only; `get_data` takes `params` as one dictionary;
   stop and timeout kill the whole process group; `.env` is saved atomically; `HARNESS_AUTO_RECALC=0` was added;
   the dead `AREAS` list and the unused `ahead` option were removed. API keys now live in the root `.env`, not `harness/key.txt`.
+- 8 Nov 2026, teammate's commit "0.6" carried into the new structure and improved: a hard cap of `MAX_TOOL_CALLS = 10` tool calls per question
+  that also holds inside one turn (the teammate's version only checked between turns; extra calls now get an error result);
+  the imbalance prompt uses the live spot price (`spot_price_fi`, field `PriceNoTax`, never the taxed one) and the realised spot of the last 24 h;
+  `nordpool_price` now really takes `start`/`end` (the prompt relied on it, but the URL had no placeholders; default window: 1 h back to 48 h ahead).

@@ -146,3 +146,26 @@ def test_every_source_url_is_https_on_an_allowed_host():
     for name, spec in sources.SOURCES.items():
         assert urlsplit(spec["url"]).scheme == "https", name
     assert None not in sources.ALLOWED_HOSTS
+
+
+# ---------- nordpool_price window ----------
+def test_nordpool_price_uses_the_start_and_end_the_model_asks_for(recorded):
+    sources.get_data("nordpool_price", {"start": "2026-11-07T00:00:00Z", "end": "2026-11-08T00:00:00Z"})
+    ((url, _),) = recorded
+    assert url == "https://dashboard.elering.ee/api/nps/price?start=2026-11-07T00:00:00Z&end=2026-11-08T00:00:00Z"
+
+
+def test_nordpool_price_without_a_window_covers_every_published_hour(recorded):
+    from datetime import UTC, datetime, timedelta
+    from urllib.parse import parse_qs, unquote, urlsplit
+
+    sources.get_data("nordpool_price")
+    ((url, _),) = recorded
+    query = parse_qs(urlsplit(unquote(url)).query)
+    start = datetime.strptime(query["start"][0], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
+    end = datetime.strptime(query["end"][0], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
+    now = datetime.now(UTC)
+    assert (
+        timedelta(minutes=59) < now - start < timedelta(minutes=61)
+    )  # one hour back: includes the current quarter-hour
+    assert timedelta(hours=47) < end - now < timedelta(hours=49)  # up to everything that is published
