@@ -1,6 +1,7 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Alert, AlertTitle, Button, Card, Hills, cn } from "@/design-system/the-reading-room-3066fa";
 import HarnessPanel from "./HarnessPanel";
+import { getStoredTheme, setTheme, type ThemeMode } from "./theme";
 import type { Cell, ChartPoint, MethodKey, NumKey, Payload, Row, SetKey, ToggleId, VariantIndex } from "./types";
 import { Area, CartesianGrid, ComposedChart, Legend, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
@@ -50,10 +51,10 @@ const eur = (v: number | null | undefined) => (v == null ? "–" : `${v.toFixed(
 
 // chart colours: deepened brand orange for the forecast (the plain orange is too light to read on white), red for the real prices
 // (easy to tell apart from the forecast), blue for the range, grey for the earlier forecast
-const C = { grid: "var(--border)", axis: "var(--muted-foreground)", p50: "#c96a00", band: "#46bedc", actual: "var(--destructive)", earlier: "#7d7d7d", now: "var(--foreground)" };
-const selectCls = "h-9 rounded-md border border-input bg-white px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30";
+const C = { grid: "var(--border)", axis: "var(--muted-foreground)", p50: "var(--color-chart-p50, #c96a00)", band: "var(--color-chart-band, #46bedc)", actual: "var(--destructive)", earlier: "#7d7d7d", now: "var(--foreground)" };
+const selectCls = "h-9 rounded-md border border-input bg-card px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30";
 const solidBtn = "border-2 border-orange-fill bg-orange-fill text-white hover:bg-orange-fill/90";
-const outlineBtn = "border-2 border-navy bg-white text-navy hover:bg-bg-light";
+const outlineBtn = "border-2 border-navy bg-card text-navy hover:bg-bg-light";
 const h2 = "font-display font-bold uppercase tracking-wide";
 const EMPTY = new Map<number, Row>();
 
@@ -66,10 +67,74 @@ function Info({ text, align = "center" }: { text: string; align?: "left" | "righ
       <button type="button" aria-describedby={id} aria-label="More information"
         className="grid size-4 place-items-center rounded-full border border-muted-foreground text-[10px] font-bold leading-none text-muted-foreground hover:bg-bg-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">i</button>
       <span id={id} role="tooltip"
-        className={cn("pointer-events-none invisible absolute top-full z-30 mt-2 w-64 rounded-md bg-navy p-3 text-left font-sans text-xs font-normal normal-case leading-snug tracking-normal text-white opacity-0 shadow-lg transition-opacity group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100", pos)}>
+        className={cn("pointer-events-none invisible absolute top-full z-30 mt-2 w-64 rounded-md border border-border bg-popover p-3 text-left font-sans text-xs font-normal normal-case leading-snug tracking-normal text-popover-foreground opacity-0 shadow-lg transition-opacity group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100", pos)}>
         {text}
       </span>
     </span>
+  );
+}
+
+/** Theme toggle segmented button: Light, Dark, or System mode */
+function ThemeToggle() {
+  const [mode, setModeState] = useState<ThemeMode>(() => getStoredTheme());
+
+  const handleSelect = (next: ThemeMode) => {
+    setModeState(next);
+    setTheme(next);
+  };
+
+  return (
+    <div
+      role="group"
+      aria-label="Theme selection"
+      className="inline-flex items-center rounded-lg border border-border bg-card p-1 text-xs shadow-xs"
+    >
+      <button
+        type="button"
+        aria-pressed={mode === "light"}
+        onClick={() => handleSelect("light")}
+        title="Light theme"
+        className={cn(
+          "flex items-center gap-1.5 rounded-md px-2.5 py-1 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          mode === "light"
+            ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+            : "text-muted-foreground hover:text-foreground"
+        )}
+      >
+        <span aria-hidden="true">☀️</span>
+        <span>Light</span>
+      </button>
+      <button
+        type="button"
+        aria-pressed={mode === "dark"}
+        onClick={() => handleSelect("dark")}
+        title="Dark theme"
+        className={cn(
+          "flex items-center gap-1.5 rounded-md px-2.5 py-1 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          mode === "dark"
+            ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+            : "text-muted-foreground hover:text-foreground"
+        )}
+      >
+        <span aria-hidden="true">🌙</span>
+        <span>Dark</span>
+      </button>
+      <button
+        type="button"
+        aria-pressed={mode === "system"}
+        onClick={() => handleSelect("system")}
+        title="Follow system appearance"
+        className={cn(
+          "flex items-center gap-1.5 rounded-md px-2.5 py-1 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          mode === "system"
+            ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+            : "text-muted-foreground hover:text-foreground"
+        )}
+      >
+        <span aria-hidden="true">💻</span>
+        <span>Auto</span>
+      </button>
+    </div>
   );
 }
 
@@ -79,7 +144,7 @@ export function ChartTip({ active, payload }: { active?: boolean; payload?: { pa
   const r = payload[0].payload;
   const real = r.realKnown ?? r.realLater;
   return (
-    <div className="rounded-md border border-border bg-white p-3 text-sm shadow-lg">
+    <div className="rounded-md border border-border bg-card p-3 text-sm text-card-foreground shadow-lg">
       <p className={cn(h2, "text-base")}>{mdOf(r.ms)} {hhmm(r.ms)}</p>
       {r.p50 != null && <>
         <p>Forecast: <b>{eur(r.p50)}</b></p>
@@ -105,19 +170,19 @@ function Chip({
 }) {
   const toneCls =
     tone === "critical"
-      ? "border-2 border-destructive bg-destructive/10"
+      ? "border-2 border-destructive bg-destructive/10 dark:bg-destructive/20"
       : tone === "high"
-      ? "border-2 border-orange-fill bg-orange-fill/15"
+      ? "border-2 border-orange-fill bg-orange-fill/15 dark:bg-orange-fill/25"
       : tone === "low"
-      ? "border-2 border-emerald-600 bg-emerald-50"
-      : "bg-bg-light";
+      ? "border-2 border-emerald-600 bg-emerald-50 dark:border-emerald-500 dark:bg-emerald-950/40"
+      : "border border-border/60 bg-bg-light";
   return (
     <div className={cn("relative flex h-[4.25rem] w-28 shrink-0 flex-col items-center justify-center rounded-md px-2 text-center transition-all", toneCls)}>
       {badge && (
         <span
           className={cn(
             "absolute -top-2 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white",
-            tone === "critical" ? "bg-destructive" : tone === "high" ? "bg-orange-fill" : "bg-emerald-700"
+            tone === "critical" ? "bg-destructive" : tone === "high" ? "bg-orange-fill" : "bg-emerald-700 dark:bg-emerald-600"
           )}
         >
           {badge}
@@ -250,19 +315,20 @@ export default function App() {
     <main className={cn("relative min-h-screen overflow-hidden bg-background font-sans text-foreground", method !== "harness" && "lg:h-screen")}>
       {/* the brand wave as a calm light-blue background */}
       <div className="pointer-events-none fixed inset-0 z-0" aria-hidden="true">
-        <Hills tone="sky" className="opacity-60" />
-        <Hills tone="primary" className="h-1/5 opacity-90" />
+        <Hills tone="sky" className="opacity-60 dark:opacity-20" />
+        <Hills tone="primary" className="h-1/5 opacity-90 dark:opacity-30" />
       </div>
       <div className={cn("relative z-10 mx-auto flex min-h-screen w-full max-w-[1500px] flex-col gap-3 p-4 transition-opacity", method !== "harness" && "lg:h-screen", loading && "opacity-70")}>{children}</div>
     </main>
   );
   const header = (
     <div className="flex flex-col gap-3">
-      <header className="flex flex-wrap items-end justify-between gap-3">
+      <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-display text-3xl font-bold uppercase leading-none sm:text-4xl tracking-wide">Imbalance price forecast<span className="text-brand">.</span></h1>
           <p className="mt-1 text-sm text-muted-foreground">Team Perjantain kevätrulla</p>
         </div>
+        <ThemeToggle />
       </header>
       {/* the two ways to predict: the highlighted box decides what the chart shows */}
       <div className="grid grid-cols-2 gap-2 sm:gap-3">
@@ -271,9 +337,9 @@ export default function App() {
           return (
             <button key={k} type="button" aria-pressed={active} onClick={() => setMethod(k)}
               className={cn("flex flex-col items-start rounded-lg border-2 border-b-4 px-3 py-2 text-left sm:px-5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                active ? "border-orange-fill border-b-brand bg-orange-fill text-white shadow-md" : "border-grey-light bg-white text-foreground hover:bg-bg-light")}>
+                active ? "border-orange-fill border-b-brand bg-orange-fill text-white shadow-md" : "border-grey-light bg-card text-foreground hover:bg-bg-light")}>
               <span className="font-display text-base font-bold uppercase leading-tight tracking-wide sm:text-xl">{m.title}</span>
-                          </button>
+            </button>
           );
         })}
       </div>
@@ -281,7 +347,7 @@ export default function App() {
     </div>
   );
   const message = (title: string, children: React.ReactNode) => (
-    <Card className="flex flex-1 items-center justify-center bg-white p-8 text-center">
+    <Card className="flex flex-1 items-center justify-center bg-card p-8 text-center">
       <div className="max-w-xl space-y-3">
         <p className={cn(h2, "text-3xl")}>{title}.</p>
         <div className="text-muted-foreground">{children}</div>
@@ -388,7 +454,7 @@ export default function App() {
     <>
       {header}
       {/* one slim strip: what it means, the main drivers, the key numbers & operational situational alerts */}
-      <Card className="flex flex-wrap items-center gap-x-6 gap-y-3 order-last border-l-4 border-l-brand bg-white p-3 lg:order-none lg:flex-nowrap lg:overflow-visible">
+      <Card className="flex flex-wrap items-center gap-x-6 gap-y-3 order-last border-l-4 border-l-brand bg-card p-3 lg:order-none lg:flex-nowrap lg:overflow-visible">
         <div className="min-w-64 flex-1 lg:min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <p className="leading-snug lg:line-clamp-1" title={dirText}>{dirText}</p>
@@ -406,7 +472,7 @@ export default function App() {
               </span>
             )}
             {!highAlert && !lowAlert && (
-              <span className="rounded bg-navy/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-navy">
+              <span className="rounded bg-navy/10 dark:bg-navy/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-navy">
                 Normal Risk (&lt; 20%)
               </span>
             )}
@@ -416,19 +482,19 @@ export default function App() {
           {(highAlert || lowAlert || regimeRec) && (
             <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
               {highAlert && (
-                <div className="flex items-center gap-1 rounded bg-destructive/10 px-2 py-0.5 text-destructive">
+                <div className="flex items-center gap-1 rounded bg-destructive/10 dark:bg-destructive/20 px-2 py-0.5 text-destructive dark:text-red-400">
                   <span className="font-bold">{highAlert.timeWindow}:</span>
                   <span>{highAlert.recommendation}</span>
                 </div>
               )}
               {lowAlert && (
-                <div className="flex items-center gap-1 rounded bg-emerald-50 px-2 py-0.5 text-emerald-800">
+                <div className="flex items-center gap-1 rounded bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 text-emerald-800 dark:text-emerald-300">
                   <span className="font-bold">{lowAlert.timeWindow}:</span>
                   <span>{lowAlert.recommendation}</span>
                 </div>
               )}
               {!highAlert && !lowAlert && regimeRec && (
-                <div className="flex items-center gap-1 rounded bg-navy/5 px-2 py-0.5 text-navy">
+                <div className="flex items-center gap-1 rounded bg-navy/5 dark:bg-navy/15 px-2 py-0.5 text-navy">
                   <span className="font-bold">Regime:</span>
                   <span>{regimeRec}</span>
                 </div>
@@ -444,7 +510,7 @@ export default function App() {
       </Card>
 
       {/* the chart in the middle, as big as possible */}
-      <Card className="flex min-h-[26rem] flex-1 flex-col gap-2 bg-white p-3 sm:p-4 lg:gap-0">
+      <Card className="flex min-h-[26rem] flex-1 flex-col gap-2 bg-card p-3 sm:p-4 lg:gap-0">
         <div className="contents lg:flex lg:flex-wrap lg:items-center lg:justify-between lg:gap-x-4 lg:gap-y-2">
           <h2 className={cn(h2, "order-1 text-2xl lg:order-none")}>Price forecast.
           </h2>
@@ -452,7 +518,7 @@ export default function App() {
             <Button size="sm" variant="outline" className={cn(outlineBtn, "order-3 basis-[22%] flex-1 lg:order-none lg:flex-none")} onClick={() => step(-24)}>◀ 1 day</Button>
             <Button size="sm" variant="outline" className={cn(outlineBtn, "order-3 basis-[22%] flex-1 lg:order-none lg:flex-none")} onClick={() => step(-1)}>◀ 1 h</Button>
             <select aria-label="date" className={cn(selectCls, "order-4 min-w-0 flex-1 lg:order-none lg:flex-none")} value={dayOf(origin)} onChange={(e) => { const i = ix.origins.findIndex((x) => dayOf(x) === e.target.value); if (i >= 0) goTo(i, false); }}>
-              {days.map((dd) => <option key={dd} value={dd}>{isoDayToFi(dd)}</option>)}
+              {days.map((dd) => <option key={dd} value={dd} className="bg-card text-foreground">{isoDayToFi(dd)}</option>)}
             </select>
             <input type="range" aria-label="whole period" className="order-2 w-full basis-full accent-brand lg:order-none lg:w-auto lg:min-w-32 lg:max-w-md lg:flex-1 lg:basis-auto" min={0} max={last} step="any" value={fpos} onChange={(e) => goTo(+e.target.value, false)} />
             <b data-testid="when" className="order-1 basis-full text-center font-display text-2xl tabular-nums text-navy lg:order-none lg:basis-auto lg:text-xl">{mdOf(origin)} {hhmm(origin)}</b>
@@ -476,13 +542,13 @@ export default function App() {
             <Button type="button" size="sm" variant="outline" className={cn(outlineBtn, "lg:hidden")} aria-expanded={inputsOpen} onClick={() => setInputsOpen(!inputsOpen)}>
               Forecast inputs{key !== "111" ? " (changed)" : ""} {inputsOpen ? "▴" : "▾"}
             </Button>
-            <div className={cn(inputsOpen ? "flex" : "hidden", "absolute left-0 top-full z-20 mt-2 w-72 flex-col gap-3 rounded-md border border-border bg-white p-3 shadow-lg lg:static lg:mt-0 lg:flex lg:w-auto lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none")}>
+            <div className={cn(inputsOpen ? "flex" : "hidden", "absolute left-0 top-full z-20 mt-2 w-72 flex-col gap-3 rounded-md border border-border bg-card p-3 shadow-lg lg:static lg:mt-0 lg:flex lg:w-auto lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none")}>
               <b className="text-sm font-medium">Forecast inputs</b>
               {TOGGLES.map((t) => (
                 <label key={t.id} className="flex cursor-pointer items-center gap-2 text-sm">
                   <button type="button" role="switch" aria-checked={on[t.id]} aria-label={t.label} onClick={() => setOn({ ...on, [t.id]: !on[t.id] })}
-                    className={cn("relative h-6 w-11 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", on[t.id] ? "bg-orange-fill" : "bg-grey-brand")}>
-                    <span className={cn("absolute top-0.5 size-5 rounded-full bg-white shadow transition-all", on[t.id] ? "left-[1.375rem]" : "left-0.5")} />
+                    className={cn("relative h-6 w-11 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", on[t.id] ? "bg-orange-fill" : "bg-grey-brand dark:bg-muted")}>
+                    <span className={cn("absolute top-0.5 size-5 rounded-full bg-white dark:bg-foreground shadow transition-all", on[t.id] ? "left-[1.375rem]" : "left-0.5")} />
                   </button>
                   <span><b className="font-medium">{t.label}</b> <span className="text-muted-foreground">{on[t.id] ? "on" : "off"}</span></span>
                 </label>
@@ -513,7 +579,7 @@ export default function App() {
               {hasAct && <Line dataKey="realLater" stroke={C.actual} strokeDasharray="5 3" strokeWidth={2} dot={false} name="Real price (after forecast)" isAnimationActive={false} />}
               <ReferenceLine x={T} stroke={C.now} strokeWidth={2} label={{ value: "Forecast made", position: "insideTopLeft", fill: "var(--foreground)", fontSize: 12 }} />
               <ReferenceLine y={0} stroke={C.axis} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Legend wrapperStyle={{ fontSize: 12, color: "var(--foreground)" }} />
             </ComposedChart>
           </ResponsiveContainer>
         </div>

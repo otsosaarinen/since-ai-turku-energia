@@ -1,6 +1,6 @@
 @import "tw-animate-css";
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:where(.dark, .dark *));
 
 /* Turku Energia design tokens. Fonts are loaded via <link> in the host app:
    Barlow (600/700/800), Source Serif 4 (300/400), Inter (400/500/600). */
