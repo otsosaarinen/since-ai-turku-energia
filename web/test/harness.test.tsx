@@ -138,6 +138,8 @@ test("progress lines become a list of steps: finished ones struck through, the c
   expect(done[2]).toMatchObject({ title: "Writing the answer", state: "done" });
   expect(parseSteps(lines, "stopped")[2].state).toBe("failed");
   expect(parseSteps([], "running")).toEqual([]);
+  const t = parseSteps(['[turn 1/10] asking the model', '[think] "I need the latest price first.\\nThen run Python."', '[tool] run_python {}'], "running");
+  expect(t[0].think).toBe("I need the latest price first.\nThen run Python.");
 });
 
 test("while running the current step has a spinner and finished steps are struck through", async () => {
@@ -151,7 +153,7 @@ test("while running the current step has a spinner and finished steps are struck
   render(<HarnessPanel pollMs={50} />);
   await waitFor(() => expect(screen.getByTestId("harness-log").querySelectorAll("li").length).toBe(2));
   const items = screen.getByTestId("harness-log").querySelectorAll("li");
-  expect(items[0].className).toMatch(/line-through/);
+  expect(items[0].className).not.toMatch(/line-through/);
   expect(items[0].getAttribute("data-state")).toBe("done");
   expect(items[1].getAttribute("data-state")).toBe("active");
   expect(items[1].querySelector("svg.animate-spin")).toBeTruthy();

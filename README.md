@@ -47,7 +47,7 @@ npm run dev
 Next time you only need `cd web` and `npm run dev`. On macOS and Linux, `./scripts/start_web.sh` from the repo folder does the same
 (and on the model owner's computer it also rebuilds the website's data from `outputs/` first). It does not work on Windows.
 
-Other website commands (run inside the `web/` folder): `npm test` (17 tests), `npm run typecheck` (TypeScript check), `npm run build` (production build).
+Other website commands (run inside the `web/` folder): `npm test` (18 tests), `npm run typecheck` (TypeScript check), `npm run build` (production build).
 What the page shows is described under "What the website shows" further down.
 
 ## Part B: train the model yourself
@@ -75,7 +75,7 @@ Never commit `data/`, `starter_package_v1/` or `outputs/` (they are git-ignored;
 **3. Install**
 ```bash
 uv sync
-uv run pytest -q                       # 30 tests: availability filter, leakage checks, input groups, harness server (about 20 s)
+uv run pytest -q                       # 35 tests: availability filter, leakage checks, input groups, harness server (about 20 s)
 ```
 
 **4. Reproduce the organisers' baseline** (once; the validation step compares against it)
@@ -116,7 +116,7 @@ uv run scripts/show_origin.py 2026-09-20T09:00   # (optional) one validation ori
 The website (`web/`, React + TypeScript + Vite + Recharts) is one screen without scrolling on a laptop screen; on a phone or narrow window it becomes one scrolling column: method boxes and chart first, the time controls under the chart, the summary below, and the input switches behind a "Forecast inputs" button. It follows the Turku Energia graphic guidelines (white page, orange
 as the accent colour, blue and grey structure with WCAG AA contrast, bold condensed capital headlines, plain wording), uses Finnish time and
 dd/mm/yyyy, and has only two "i" tooltips (period buttons, key numbers; the chart legend explains the lines). What is on the screen, top to bottom:
-- **Period buttons:** the validation month (with real prices) or the test forecast (without).
+- **Period buttons:** the validation month (with real prices) or the test forecast (without). Shown only for the "Machine-learning model" box; hidden on the Harness prediction page.
 - **Two method boxes:** **Machine-learning model** (this repo's LightGBM forecasts) and **Harness prediction** (a second method whose code is in `harness/`, see
   "Harness prediction" below; its forecasts are not connected to the chart yet). The highlighted box decides what the chart shows. To connect it, add forecasts as
   `web/public/data/harness_validation.json` and `harness_final.json` in the same format as `validation.json` / `final.json` (`{name, hasActuals, cols, rows}`, see
@@ -165,10 +165,11 @@ HARNESS_PROVIDER=llamacpp LLAMACPP_BASE_URL=http://localhost:9931/v1 \
 ./scripts/start_web.sh         # the website; pick "Harness prediction", choose a model, press Start run
 ```
 The panel offers only the small gemma-4 E4B model (the server filters the Llama app's model list; `HARNESS_MODEL_FILTER=E4B,12B ./scripts/start_harness.sh` offers more), has two fixed forecast choices (imbalance price next 12 h; day-ahead price next 12 h) with a one-line description each; the prompt text cannot be edited on the page and lives in `harness/server.py` (`PRESETS`), which accepts only a preset name,
-shows the run live as a short list of steps (one per call to the model, named by what it did, e.g. "Step 2: Fetching nordpool_price"; finished steps are grey and struck through, the current one has a spinner, a failed fetch shows its error under the step) and, when finished, the answer (the table is found even if the model forgets the code fence) as a chart (orange forecast line, blue low-to-high range) and a table in Finnish time. `[turn k/10]` counts calls to the model; 10 is only the maximum, a run ends when the model decides to answer. The server tells the model the current UTC time and to use ISO timestamps (small models otherwise send words like "5 hours ago" to the data sources). It works only on your own computer with the Vite dev server
+shows the run live as a short list of steps (one per call to the model, named by what it did, e.g. "Step 2: Fetching nordpool_price"; finished steps are grey, the current one has a spinner, the list scrolls inside its own box, a failed fetch shows its error under the step, and the model's reasoning for that step is shown in grey italics when the model returns it, shown in full, from the `[think]` progress line) and, when finished, the answer (the table is found even if the model forgets the code fence) as a chart (orange forecast line, blue low-to-high range) and a table in Finnish time. `[turn k/10]` counts calls to the model; 10 is only the maximum, a run ends when the model decides to answer. The server tells the model the current UTC time and to use ISO timestamps (small models otherwise send words like "5 hours ago" to the data sources). It works only on your own computer with the Vite dev server
 (the proxy `/harness-api` in `web/vite.config.ts`); on a hosted copy (Vercel) it only explains how to start the server. One run at a time, stopped after 20 minutes, **Stop** ends it.
 The server (`harness/server.py`, written for this repo) listens on 127.0.0.1 only and refuses any request whose Host or Origin is not localhost, because a run executes model-written Python.
 On the command line the same progress lines appear with `--progress` (added to `harness/harness.py`).
+Fetched data is saved to `harness/reports/data/` (git-ignored); the model sees a short preview and the file path and is told to load the file in its Python code instead of pasting data into it (long pasted JSON made the small model write broken code). Tool calls that arrive cut off get their own retry budget of 4 and do not count towards the 10 turns.
 
 **API keys:** the panel shows an input field for each missing key (Fingrid, ENTSO-E; OpenRouter only for the hosted provider) and saves it to `harness/key.txt` (git-ignored, 0600) without showing it again. On the command line the harness asks for missing keys on startup (Enter skips) and saves them there. Without the Fingrid key the `fingrid_*` sources fail. Example question that uses it (run from the repo folder):
 ```bash

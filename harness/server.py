@@ -39,7 +39,7 @@ PRESETS = {
             "Pair them with the spot price of the same quarter-hour and compute the spread = imbalance price minus spot, then its median, 10th and 90th percentile with run_python. "
             "3) Forecast for each hour = spot of that hour + median spread; low = spot + 10th percentile spread; high = spot + 90th percentile spread. "
             "Do NOT extrapolate a trend line. Clamp all values to -50..400 EUR/MWh. "
-            "4) End with the csv block, horizon=24h, metric=imbalance_price, one row per 2 hours. Keep the explanation under 10 lines. Only use hours later than the current time."
+            "4) End with the csv block, horizon=12h, metric=imbalance_price, one row per 2 hours. Keep the explanation under 10 lines. Only use hours later than the current time."
         ),
     },
     "dayahead": {
@@ -48,7 +48,7 @@ PRESETS = {
         "prompt": (
             "Get nordpool_price and list the Finland day-ahead price for every 2 hours of the next 12 hours starting at the next full hour. "
             "Do not invent any numbers. Only list hours later than the current time. End with the csv block inside a ```csv code fence, "
-            "horizon=24h, metric=spot_price, low=high=value, drivers=nordpool_price."
+            "horizon=12h, metric=spot_price, low=high=value, drivers=nordpool_price."
         ),
     },
 }
@@ -166,7 +166,7 @@ def _run_job(job: dict) -> None:
     def read_err():
         for line in proc.stderr:
             with LOCK:
-                job["lines"].append(line.rstrip("\n")[:600])
+                job["lines"].append(line.rstrip("\n")[: 20000 if line.startswith("[think] ") else 600])
 
     t_err = threading.Thread(target=read_err, daemon=True)
     t_err.start()
@@ -259,7 +259,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         url = urlsplit(self.path)
         if url.path == "/api/info":
-            self._send(200, {"llama_url": LLAMA_URL, "models": list_models(), "max_prompt": MAX_PROMPT, "keys": keys_status()})
+            self._send(200, {"llama_url": LLAMA_URL, "models": list_models(), "presets": [{"id": k, "label": v["label"], "about": v["about"]} for k, v in PRESETS.items()], "keys": keys_status()})
         elif url.path == "/api/keys":
             self._send(200, keys_status())
         elif url.path == "/api/job":

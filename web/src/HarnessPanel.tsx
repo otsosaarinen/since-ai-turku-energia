@@ -101,7 +101,7 @@ function AnswerChart({ points }: { points: Point[] }) {
   );
 }
 
-export interface Step { n: number; title: string; detail: string; state: "done" | "active" | "failed" }
+export interface Step { n: number; title: string; detail: string; think: string; state: "done" | "active" | "failed" }
 
 /** Turns the harness progress lines into a short list of steps: one per call to the model, named by what it did. */
 export function parseSteps(lines: string[], status: JobView["status"] | null): Step[] {
@@ -110,8 +110,12 @@ export function parseSteps(lines: string[], status: JobView["status"] | null): S
   for (const line of lines) {
     const turn = line.match(/^\[turn (\d+)\/\d+\]/);
     const last = steps[steps.length - 1];
-    if (turn) { steps.push({ n: Number(turn[1]), title: "Asking the model", detail: "", state: "done" }); continue; }
+    if (turn) { steps.push({ n: Number(turn[1]), title: "Asking the model", detail: "", think: "", state: "done" }); continue; }
     if (!last) continue;
+    if (line.startsWith("[think] ")) {
+      try { last.think = String(JSON.parse(line.slice(8))); } catch { last.think = line.slice(8).replace(/^"|"?$/g, ""); }
+      continue;
+    }
     const tool = line.match(/^\[tool\] (\w+) ?(.*)$/);
     if (tool) {
       const src = tool[2].match(/"source"\s*:\s*"([^"]+)"/)?.[1];
@@ -268,19 +272,20 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
             {err && <p className="text-sm text-destructive" role="alert">{err}</p>}
           </div>
           <div className="flex min-h-0 flex-col gap-3">
-            <div className="flex min-h-0 flex-col lg:shrink-0 lg:max-h-[40%]">
+            <div className={cn("flex min-h-0 flex-col", job && job.answer ? "lg:max-h-[45%]" : "lg:flex-1")}>
               <h3 className="font-display text-base font-bold uppercase tracking-wide">Progress.</h3>
-              <ol ref={logRef} data-testid="harness-log" className="mt-1 max-h-56 min-h-0 space-y-1 overflow-auto rounded-md bg-bg-light p-3 text-sm">
+              <ol ref={logRef} data-testid="harness-log" className="mt-1 max-h-96 min-h-0 space-y-1 overflow-auto rounded-md bg-bg-light p-3 text-sm lg:max-h-none lg:flex-1">
                 {steps.length === 0 && (
                   <li className="flex items-center gap-2 text-muted-foreground">{running ? <><Spinner /> Starting the model …</> : "Nothing yet. A run takes a few minutes."}</li>
                 )}
-                {steps.map((st) => (
-                  <li key={st.n} data-state={st.state} className={cn("flex flex-col", st.state === "done" ? "text-muted-foreground line-through" : st.state === "failed" ? "text-destructive" : "font-medium text-foreground")}>
+                {steps.map((st, i) => (
+                  <li key={i} data-state={st.state} className={cn("flex flex-col", st.state === "done" ? "text-muted-foreground" : st.state === "failed" ? "text-destructive" : "font-medium text-foreground")}>
                     <span className="flex items-center gap-2">
                       {st.state === "active" ? <Spinner /> : <span className="w-4 shrink-0 text-center no-underline">{st.state === "done" ? "✓" : "✕"}</span>}
                       <span>Step {st.n}: {st.title}{st.state === "active" ? " …" : ""}</span>
                     </span>
                     {st.detail && <span className="ml-6 text-xs font-normal">{st.detail}</span>}
+                    {st.think && <span data-testid="harness-think" className="ml-6 mt-0.5 whitespace-pre-wrap border-l-2 border-grey-light pl-2 text-xs font-normal italic text-muted-foreground">Reasoning: {st.think}</span>}
                   </li>
                 ))}
                 {(job?.status === "error") && lines.length > 0 && <li className="pt-1 text-xs text-destructive">{lines.filter((l) => !/^\[(turn|tool|result|start|done)/.test(l)).slice(-2).join(" ")}</li>}

@@ -226,14 +226,14 @@ export default function App() {
           <h1 className="font-display text-3xl font-bold uppercase leading-none sm:text-4xl tracking-wide">Imbalance price forecast<span className="text-brand">.</span></h1>
           <p className="mt-1 text-sm text-muted-foreground">Since AI Hackathon 2026, Turku Energia challenge. The next 10 hours.</p>
         </div>
-        <div className="grid grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap">
+        {method === "current" && <div className="grid grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap">
           <span className="col-span-2 text-sm text-muted-foreground sm:col-span-1">Period
             <Info align="right" text="Validation: a practice month with known real prices. Test forecast: the month that will be scored; its prices are unknown." />
           </span>
           {(Object.entries(SETS) as [SetKey, { label: string }][]).map(([k, v]) => (
             <Button key={k} size="sm" variant={set === k ? "primary" : "outline"} className={set === k ? solidBtn : outlineBtn} onClick={() => setSet(k)}>{v.label}</Button>
           ))}
-        </div>
+        </div>}
       </header>
       {/* the two ways to predict: the highlighted box decides what the chart shows */}
       <div className="grid grid-cols-2 gap-2 sm:gap-3">

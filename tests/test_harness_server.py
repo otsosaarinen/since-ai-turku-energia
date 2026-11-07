@@ -104,3 +104,22 @@ def test_keys_are_checked_and_saved_without_echoing_values(tmp_path, monkeypatch
     assert "secret" not in str(server.keys_status())          # values never leave the server
     assert "FINGRID_API_KEY=secret" in (tmp_path / "key.txt").read_text()
     monkeypatch.delenv("FINGRID_API_KEY", raising=False)
+
+
+def test_info_endpoint_lists_presets_models_and_key_names(monkeypatch):
+    import json
+    import threading
+    import urllib.request
+    from http.server import ThreadingHTTPServer
+
+    monkeypatch.setattr(server, "list_models", lambda: ["gemma-E4B"])
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), server.Handler)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{srv.server_address[1]}/api/info", timeout=5) as r:
+            info = json.load(r)
+    finally:
+        srv.shutdown()
+    assert info["models"] == ["gemma-E4B"]
+    assert {p["id"] for p in info["presets"]} == set(server.PRESETS)
+    assert set(info["keys"]) == {"set", "missing"}
