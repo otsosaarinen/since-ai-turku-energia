@@ -118,3 +118,16 @@ Idea from an outside suggestion list. One model fit per window, variants applied
 | Same, full strength | +0.0016 (4/8 better) | 0 | worse |
 
 Not tried: spike probabilities from extra quantiles, direction-aware mixture, Open-Meteo Single Runs (risk of an availability error and no time to validate).
+
+## 8. Harness live tests (7 Nov 2026, `harness/`, gemma-4 E4B Q8_0 with 32k context through the Llama app)
+
+Not comparable with sections 1-7 (live forecasts, no backtest, no scoring). What was observed:
+
+| Question | Result |
+|---|---|
+| 17*23 with Python | correct (391) in about 18 s; the tool use was not visible because the harness prints only the final answer |
+| Finnish day-ahead price, next 24 h (no Fingrid key) | answered, but the table was cut off after 14 rows, started in the past, and rested on invented assumptions (nuclear 60 %, hydro 15 %, a made-up load curve) |
+| Finnish imbalance price every 2 h for 12 h (with Fingrid key) | Fingrid data was fetched (latest point 11:30Z), but the model fitted a line through five 15-minute points and projected 133 rising to 495 EUR/MWh; it ignored the day-ahead price it was told to use |
+
+Reading: the imbalance price has almost no memory after an hour (autocorrelation 0.09 at 1 h, section 3), so a line through the latest points cannot work, and a 4B model chooses the
+simplest method. A prompt that forces "day-ahead price + typical spread" is the next thing to try; not done. A bigger model (gemma-4 12B) was not tried.

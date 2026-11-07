@@ -27,8 +27,8 @@
    spike and of the grid needing more power, and a chart of the forecast, its likely range, the real price and the forecast made 3 hours
    earlier. Time can be moved to any forecast of the period (bar, date list, 1 h / 1 day steps) or played forward smoothly, so the usefulness can be
    shown over time and not only live. Three switches turn Fingrid's solar, wind and consumption forecasts on and off (each combination is a
-   separately trained model, see "Input switches" below). A second prediction method ("Harness prediction") has a place in the viewer and is
-   shown as soon as its forecasts are added.
+   separately trained model, see "Input switches" below). A second prediction method ("Harness prediction", an AI model that runs Python on live open data; code in `harness/`, see
+   "Harness prediction" below) has a place in the viewer; it is not part of the scored submission.
 
 ## Factors affecting the forecast
 How often each factor is among the three biggest drivers (SHAP) of a forecast, over all 26,920 rows of the test forecast:
@@ -121,6 +121,13 @@ persistence = the baseline method); interval pinball 19 % better than constant q
 constant rates; direction Brier 9 % better than constant shares. Tree size, seasonal same-time-of-day features, recency weighting and
 shrinking p50 toward spot gave no consistent gain; extra-trees + 6 seeds gave a small one (MAE and direction better in 6/8 windows).
 The full list of experiments and numbers is in `EXPERIMENTS.md`.
+
+## Harness prediction (second method, experimental)
+`harness/` holds an AI harness copied from another repo (see `SOURCES.md`): a local language model (gemma-4 E4B through the Llama app) can run Python and read live open data (Fingrid,
+Elering/Nord Pool day-ahead price, Statnett, Open-Meteo) and answers with a forecast table. It is **not** the submission and cannot be scored like it: it forecasts from the situation
+now (24 h / 7 d) and has no forecast origins or availability rule, so it cannot make the 673 backtest origins. Tests on 7 Nov 2026 (`EXPERIMENTS.md` section 8): the setup works, but a
+small local model produced weak forecasts (a straight line through five points that reached 495 EUR/MWh, and a day-ahead "forecast" built on invented load and production). We therefore present
+the LightGBM model as the entry and the harness as a live demo and a possible direction, and we say so openly.
 
 ## Caveats
 - Spike probabilities are not perfectly calibrated (a base-rate shift toward the last 14 days was tested and did not help reliably, `EXPERIMENTS.md` section 7): September had more high spikes (12 %) than the training summer

@@ -48,7 +48,7 @@ vs spot). 8 leaves, extra-trees, 6 seeds, rounds from a time-ordered inner split
 - Layout: one screen, no scrolling on large screens (lg = 1024 px and up). Below that it is a single scrolling column in this order: title and period, the two method boxes (compact, one short line each), the chart (20 rem tall) with the time controls under it, then the note and the summary strip last (text not clamped); pitfall: `flex-1` on a column child overrides its height and collapses the chart, so the chart box uses `lg:flex-1` only; the input switches sit behind a "Forecast inputs" button that opens a pop-up panel (`inputsOpen` state). Responsive classes use Tailwind `lg:`; not seen on a real phone (no browser here), only the code and tests were checked; wave background (light-blue wave + orange hill); title row, period buttons, two method boxes,
   a fixed-height summary strip (one sentence, drivers, three chips: high spike, low spike, average error; cut down on purpose, do not add more text), then the chart centred and as large as possible with time controls above it
   and the input switches stacked vertically in a narrow column left of the chart (the user asked for this; no other left column). Do not define components inside `App` (it remounts the controls; a test guards this).
-- Methods: boxes "Machine-learning model" (was "Current model") and "Harness prediction" (METHODS in App.tsx). Harness has no data yet: it reads
+- Methods: boxes "Machine-learning model" (was "Current model") and "Harness prediction" (METHODS in App.tsx). Harness has no forecast files yet: it reads
   web/public/data/harness_{validation,final}.json (same format as validation.json) and shows "not connected yet" until they exist.
 - Input switches (TOGGLES in App.tsx, groups in src/features.py TOGGLE_GROUPS): 8 precomputed variants in web/public/data/variants/
   {validation,final}_<key>.json + index.json (key digits = solar, wind, consumption; 111 = normal model). Residual-load features are dropped whenever any
@@ -71,14 +71,14 @@ tool executes model-written code with full user access; prompt injection from fe
 (`uv run --group harness python harness.py ...`, group `harness` in pyproject.toml). `harness/key.txt` and `harness/reports/` are git-ignored. Do not edit its code without noting it
 in harness/README.md. It is a live 24 h / 7 d analyst, not a backtest: its csv (horizon,time,area,metric,value,unit,low,high,confidence,drivers) cannot fill the website's harness JSON
 without a converter and a decision on what to show. The Llama app (localhost:9931, OpenAI-style API) needs context >= 16k for it; the harness picks the FIRST listed model if `-m`
-is missing (that is the tiny Qwen). Its dependencies are the `harness` group in pyproject.toml (the upstream requirements.txt was not copied).
+is missing (that is the tiny Qwen). Tested 7 Nov: works with gemma-4 E4B Q8 (32k ctx) via the Llama app; the user's Fingrid key is in harness/key.txt (git-ignored; never print or commit it). Forecast quality is weak (small model, naive line extrapolation); the harness is a live demo, the LightGBM model stays the entry. Its dependencies are the `harness` group in pyproject.toml (the upstream requirements.txt was not copied).
 
 ## Decisions and open questions
 - Extra Fingrid history before 1 Jun (to "teach winter"): the user has a Fingrid API key (not stored; if used put it in `.secrets/fingrid.env`, git-ignored)
   and says the organisers allow extra data. NOT done. Obstacles: no spot price before June, pricing rules changed 1 Jun, ENTSO-E needs a token, test
   month is October. Agreed next step if pursued: the cheap learning-curve check (EXPERIMENTS.md section 5) before any download.
 - Weather (cloud/sunlight) switches need data that is not in the package; the switches only show Fingrid's solar/wind/consumption forecasts.
-- Harness prediction: a teammate's second method, to be added later as JSON files (see above); an exporter can be written once its format is known.
+- Harness prediction: its code is now in harness/ (see the Harness section); not yet connected to the chart (needs a converter and a decision on showing live forecasts); weak results so far (EXPERIMENTS.md section 8).
 - The user decided to develop the website on this laptop (friends only need `web/public/data/` + Node, see README).
 - LUMI: not set up (no access yet; local training takes about a minute). `scripts/train_cpu.sbatch` is untested with a placeholder project ID. If
   asked: `lumi-workspaces` for the project ID, then give rsync commands excluding .git/.venv/outputs.

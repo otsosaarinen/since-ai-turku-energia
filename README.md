@@ -117,10 +117,11 @@ The website (`web/`, React + TypeScript + Vite + Recharts) is one screen without
 as the accent colour, blue and grey structure with WCAG AA contrast, bold condensed capital headlines, plain wording), uses Finnish time and
 dd/mm/yyyy, and has only two "i" tooltips (period buttons, key numbers; the chart legend explains the lines). What is on the screen, top to bottom:
 - **Period buttons:** the validation month (with real prices) or the test forecast (without).
-- **Two method boxes:** **Machine-learning model** (this repo's LightGBM forecasts) and **Harness prediction** (a second method, not connected yet). The
-  highlighted box decides what the chart shows. To connect the harness, add its forecasts as `web/public/data/harness_validation.json` and
-  `harness_final.json` in the same format as `validation.json` / `final.json` (`{name, hasActuals, cols, rows}`, see `src/exports.py`
-  `web_payload`); until then its box shows a "not connected yet" message.
+- **Two method boxes:** **Machine-learning model** (this repo's LightGBM forecasts) and **Harness prediction** (a second method whose code is in `harness/`, see
+  "Harness prediction" below; its forecasts are not connected to the chart yet). The highlighted box decides what the chart shows. To connect it, add forecasts as
+  `web/public/data/harness_validation.json` and `harness_final.json` in the same format as `validation.json` / `final.json` (`{name, hasActuals, cols, rows}`, see
+  `src/exports.py` `web_payload`); until then its box shows a "not connected yet" message. The harness makes live forecasts, not a backtest, so a converter and a decision on
+  what to show are still needed.
 - **Summary strip:** one plain sentence (does the grid need more or less power), the main drivers and three numbers (chance of a high and of a low price spike
   and, when real prices are known, the average error). The method boxes keep one short line each. Kept short on purpose: the page was found cluttered, so everything else was cut. All cards are plain white.
 - **Chart (in the middle, as big as possible):** forecast, likely range (blue), real price (red), the forecast made 3 h earlier (grey) and a
@@ -155,11 +156,17 @@ before keeping it public, and delete the Vercel project after the event (`npx ve
 and fetch live data, so treat it as untrusted: its `run_python` tool runs model-written code with your full user access. It uses this project's uv environment, so there is only
 one uv project: `uv sync --group harness` installs its packages (openai, scipy, statsmodels). With a local model server such as the Llama app on port 9931 (context 16k or more):
 ```bash
-cd harness
 HARNESS_PROVIDER=llamacpp LLAMACPP_BASE_URL=http://localhost:9931/v1 \
-  uv run --group harness python harness.py -m "ggml-org/gemma-4-E4B-it-GGUF:Q8_0" -q "predict the next 24 h"
+  uv run --group harness python harness/harness.py -m "ggml-org/gemma-4-E4B-it-GGUF:Q8_0" -q "what is 17*23? use python"
 ```
-It makes live forecasts (next 24 h / 7 days) and is not a backtest, so its output does not fit the website's chart or the submission file as it is. Plain `uv sync`
+**Fingrid key:** put it in `harness/key.txt` as a line `FINGRID_API_KEY=...` (git-ignored); without it the `fingrid_*` sources fail. Example question that uses it (run from the repo folder):
+```bash
+HARNESS_PROVIDER=llamacpp LLAMACPP_BASE_URL=http://localhost:9931/v1 \
+  uv run --group harness python harness/harness.py -m "ggml-org/gemma-4-E4B-it-GGUF:Q8_0" -q "predict the Finnish imbalance price every 2 hours for the next 12 hours" > harness/answer.txt
+```
+Turn an answer into a table with `cd harness && uv run --group harness python report.py answer.txt` (writes `reports/prediction.csv`). It makes live forecasts (next 24 h / 7 days)
+and is **not a backtest and not part of the submission file**, so its output does not fit the website's chart as it is. First tests (7 Nov, gemma-4 E4B Q8, 32k context, Llama app):
+it works end to end (about 20 s for a simple question, 2-6 min with data) but a small local model gave weak forecasts, see `EXPERIMENTS.md` section 8. The harness prints no progress. Plain `uv sync`
 removes the harness packages again; run `uv sync --group harness` to get them back. API keys it asks for are saved to `harness/key.txt` and reports to `harness/reports/` (both git-ignored).
 
 ## Layout
