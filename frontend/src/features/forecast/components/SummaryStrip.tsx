@@ -53,7 +53,7 @@ export function SummaryStrip({ summary, hasActuals }: SummaryStripProps) {
       <div className="flex shrink-0 flex-wrap items-center gap-2">
         <StatChip value={summary.highSpikeText} label="high price spike" tone={summary.highSpikeChip.tone} badge={summary.highSpikeChip.badge} />
         <StatChip value={summary.lowSpikeText} label="low price spike" tone={summary.lowSpikeChip.tone} badge={summary.lowSpikeChip.badge} />
-        {hasActuals && <StatChip value={summary.meanAbsoluteError == null ? "–" : summary.meanAbsoluteError.toFixed(1)} label="average error, €/MWh" />}
+        {hasActuals && <StatChip value={summary.meanAbsoluteError == null ? "–" : summary.meanAbsoluteError.toFixed(1)} label={"average error\n€/MWh"} />}
       </div>
     </Card>
   );

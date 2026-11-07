@@ -17,7 +17,7 @@ Forecast the Finnish imbalance price (`fi_imbalance_price`) 40 quarter-hours (10
 - Target quarter-hours' own actuals are never features. aFRR series are sparse: no row = no activation; never forward-fill.
 - The briefing PDF (~/Downloads/Turku_Energia_Imbalance_Price_Challenge_Briefing.pdf, slides 11 and 25) is the authority: other open/paid data is
   allowed if sources and licences are listed, but test-period data is never used for training. No Open-Meteo Historical Forecast API.
-- `backend/data/spot_nordpool.csv` (Nord Pool) is hackathon-only: never print its rows, commit, share or export spot values. `data/`, `outputs/`,
+- `backend/data/spot_nordpool.csv` (Nord Pool) is hackathon-only: never print its rows, commit, share or export spot values (`actuals_validation.csv` also has a `spot_price` column). `data/`, `outputs/`,
   `starter_package_v1/`, `*.csv`, `*.parquet`, `*.pkl`, `*.zip`, `.env`/`.secrets/`, `frontend/public/data/` are git-ignored. Delete the data after the event.
   The GitHub repo (otsosaarinen/since-ai-turku-energia) is PUBLIC: check `git status` before any commit; never add data, outputs or keys.
 - `backend/starter_package_v1/` is read-only reference. Write all code outside it. Never modify files in ~/Downloads.
@@ -105,6 +105,14 @@ Run backend commands from `backend/` (`uv sync` first; macOS needs `brew install
 
 ## Status (8 Nov 2026)
 - Submission `backend/outputs/final/forecast_backtest.csv` was uploaded on 7 Nov and is unchanged (sha256 starts 4f396b56dd9bae1d). It is not in git.
-- Work is on branch `nextjs-frontend` (Next.js frontend, backend/ restructure, harness package). Many changes are uncommitted: run `git status -sb`. Ask before committing.
-- Vercel: the old Vite demo (`imbalance-forecast-demo`) must be deleted after the event (Nord Pool licence). The user connects the new GitHub -> Vercel project in the browser.
-- Still to do by the user: slides (5-8), 2 min demo video, Safari check of the redesigned UI, delete data and Vercel copies after the event.
+- Everything is merged on `main` and pushed (restructure, Next.js, harness package, the teammate's 0.6). Check `git status -sb` for later edits.
+- Hosting: Vercel project `imbalance-forecast-demo` is connected to GitHub (Root Directory `frontend`, Node 22, `NEXT_PUBLIC_HIDE_HARNESS=true`).
+  The 16 website JSON files are in a public Vercel Blob store `imbalance-forecast-demo-blob` (store_DPxKJqNf9RTz5lho) and
+  `NEXT_PUBLIC_DATA_BASE_URL` points to it. Credentials used for the upload were rotated. Only those 16 files may ever go there.
+- Delete after the event: the Blob store, old Vercel deployments, `backend/data`, `backend/starter_package_v1`, `backend/outputs`.
+- From the briefing (read 8 Nov): the demo video may be up to 5 min (the user plans 2); a hosted URL is not required (the video is the demo);
+  Level 2 (20% of the score, jury) rewards a past-performance view (previous day, week, month), moving time into the past, alerts and
+  justified suggestions. The website has time travel and alerts but NO past-performance view yet. The brand guide asks for the official
+  presentation template for slides (not available) and a warm, plain, solution-focused tone.
+- Still to do by the user: slides (5-8), the demo video, Safari check of the redesign (the y-axis title and error chip fixes are untested visually).
+- Open design question: the harness imbalance prompt gives all 24 hourly rows one spot level (see backend/harness/README.md).

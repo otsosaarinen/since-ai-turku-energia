@@ -6,6 +6,9 @@ import type { ChartSeries } from "../lib/chartSeries";
 import type { PriceAxis } from "../lib/priceAxis";
 import { ChartTooltip } from "./ChartTooltip";
 
+// the unit is written once, as a vertical title, not after every tick number (which made two crowded lines per tick)
+export const Y_AXIS_TITLE = { value: "€/MWh", angle: -90, position: "insideLeft", fill: "var(--muted-foreground)", fontSize: 12 } as const;
+
 interface ForecastChartProps {
   series: ChartSeries;
   priceAxis: PriceAxis | null;
@@ -20,7 +23,7 @@ export function ForecastChart({ series, priceAxis, hasActuals }: ForecastChartPr
         <ComposedChart data={points} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
           <CartesianGrid stroke={CHART_COLORS.grid} strokeDasharray="3 3" vertical={false} />
           <XAxis type="number" dataKey="ms" domain={[forecastTimeMs - 3 * HOUR_MS, forecastTimeMs + 9.75 * HOUR_MS]} allowDataOverflow ticks={hourTicks} tickFormatter={finnishClock} stroke={CHART_COLORS.axis} fontSize={12} />
-          <YAxis domain={priceAxis ? [priceAxis.lowest, priceAxis.highest] : ["auto", "auto"]} ticks={priceAxis ? priceAxis.ticks : undefined} allowDataOverflow stroke={CHART_COLORS.axis} fontSize={12} unit=" €/MWh" width={80} />
+          <YAxis domain={priceAxis ? [priceAxis.lowest, priceAxis.highest] : ["auto", "auto"]} ticks={priceAxis ? priceAxis.ticks : undefined} allowDataOverflow stroke={CHART_COLORS.axis} fontSize={12} width={64} label={Y_AXIS_TITLE} />
           <Tooltip content={<ChartTooltip />} cursor={{ stroke: CHART_COLORS.axis, strokeDasharray: "3 3" }} />
           <Area dataKey="prevBase" stackId="c" stroke="none" fill="transparent" legendType="none" isAnimationActive={false} />
           <Area dataKey="prevWidth" stackId="c" stroke="none" fill={CHART_COLORS.earlierForecast} fillOpacity={0.15} legendType="none" name="Earlier range" isAnimationActive={false} />

@@ -24,7 +24,7 @@ export function StatChip({ value, label, tone = "default", badge }: StatChipProp
     <div className={cn("relative flex h-[4.25rem] w-28 shrink-0 flex-col items-center justify-center rounded-md border px-2 text-center", TONE_CLASSES[tone])}>
       {badge && <Badge variant={BADGE_VARIANTS[tone]} className="absolute -top-2.5">{badge}</Badge>}
       <div className="font-serif text-2xl font-light leading-none tabular-nums text-navy">{value}</div>
-      <div className="mt-1 text-xs leading-tight text-muted-foreground">{label}</div>
+      <div className="mt-1 whitespace-pre-line text-xs leading-tight text-muted-foreground">{label}</div>
     </div>
   );
 }

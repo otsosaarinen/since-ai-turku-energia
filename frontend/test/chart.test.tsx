@@ -99,8 +99,8 @@ test("the price axis stays the same while time moves, even when prices there are
   const first = priceTicks(container);
   expect(first.length).toBeGreaterThanOrEqual(5);
   const axis = computePriceAxis(validationPayload());                                      // the axis is fixed by the whole period
-  expect(first[0]).toBe(`${axis.lowest} €/MWh`);
-  expect(first[first.length - 1]).toBe(`${axis.highest} €/MWh`);
+  expect(first[0]).toBe(String(axis.lowest));
+  expect(first[first.length - 1]).toBe(String(axis.highest));
   for (const v of ["10.5", "100", "250", "400", "600"]) {                                  // different hours and in-between positions
     fireEvent.change(slider, { target: { value: v } });
     expect(priceTicks(container)).toEqual(first);

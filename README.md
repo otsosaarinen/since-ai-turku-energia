@@ -71,13 +71,17 @@ One settings file for the whole project: `.env` in the repo root (git-ignored). 
 
 ## Host the website on Vercel
 
-1. Import the GitHub repo in Vercel and set **Root Directory** to `frontend`.
+1. Import the GitHub repo in Vercel and set **Root Directory** to `frontend` (framework Next.js, Node 22).
 2. Add the variable `NEXT_PUBLIC_HIDE_HARNESS` = `true`, then deploy.
-3. The forecast files are not in git, so the site will say the data is missing. To show forecasts, host the
-   files somewhere that allows cross-origin requests and set `NEXT_PUBLIC_DATA_BASE_URL` to that address.
+3. The forecast files are not in git, so the site says the data is missing until you host them. Create a public
+   **Vercel Blob** store (Storage tab) and upload only the 16 website files (`validation.json`, `final.json` and
+   the files in `variants/`) with `npx vercel blob put <file> --access public --pathname <name> --force`.
+4. Set `NEXT_PUBLIC_DATA_BASE_URL` to the store's address (`https://<store-id>.public.blob.vercel-storage.com`,
+   no trailing slash) and redeploy.
 
-The forecasts come from Nord Pool data that is for the hackathon only: keep any public link protected and
-delete it and any hosted data after the event.
+Never upload `backend/data/` (it holds the Nord Pool spot prices and `actuals_validation.csv`, which has a `spot_price`
+column) or `backend/outputs/`. The 16 website files contain no spot prices. The briefing says the spot data must
+not be shared or published and must be deleted after the event: delete the Blob store as well.
 
 ## Folders
 
