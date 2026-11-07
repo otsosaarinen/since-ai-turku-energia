@@ -1,7 +1,7 @@
 import React from "react";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
-import HarnessPanel, { chartPoints, fiTime, parseCsvBlock, parseSteps, splitAnswer, timeMs } from "../src/HarnessPanel";
+import HarnessPanel, { ReasonTip, chartPoints, fiTime, parseCsvBlock, parseSteps, splitAnswer, timeMs } from "../src/HarnessPanel";
 
 // give the chart a real size so Recharts draws it in jsdom
 vi.mock("recharts", async (orig) => {
@@ -42,12 +42,27 @@ test("the panel asks for missing API keys and saves one", async () => {
   render(<HarnessPanel pollMs={10} />);
   fireEvent.click(await screen.findByText(/Settings/));
   await waitFor(() => expect(screen.getByTestId("harness-keys")).toBeTruthy());
-  const field = screen.getByLabelText("key value") as HTMLInputElement;
+  const field = screen.getByLabelText("FINGRID_API_KEY value") as HTMLInputElement;   // one field per key, Fingrid first (the prediction needs it)
   expect(field.type).toBe("password");                                            // the key is not shown as it is typed
   fireEvent.change(field, { target: { value: "secret" } });
-  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  fireEvent.click(field.closest("div")!.querySelector("button")!);
   await waitFor(() => expect(calls.some((c) => c.url.endsWith("/keys") && c.body!.includes("secret"))).toBe(true));
-  await waitFor(() => expect((screen.getByLabelText("key name") as HTMLSelectElement).value).toBe("ENTSOE_API_KEY"));
+  await waitFor(() => expect(screen.getByLabelText("FINGRID_API_KEY value").closest("label")!.textContent).toMatch(/saved/));   // still shown, so the key can be replaced
+  expect(screen.getByLabelText("ENTSOE_API_KEY value")).toBeTruthy();
+});
+
+test("a key that is already saved is still asked on the page, so the Fingrid key can be typed there", async () => {
+  const ok = (data: unknown) => ({ ok: true, status: 200, json: async () => data });
+  global.fetch = vi.fn(async (url: string) => {
+    if (url.endsWith("/info")) return ok({ llama_url: "x", models: ["m"], presets: [{ id: "imbalance", label: "Imbalance price, next 12 h", about: "About imbalance." }], keys: { set: ["FINGRID_API_KEY"], missing: ["ENTSOE_API_KEY"] } });
+    if (url.endsWith("/job")) return ok({ job: null });
+    return ok({});
+  }) as unknown as typeof fetch;
+
+  render(<HarnessPanel pollMs={10} />);
+  await waitFor(() => expect(screen.getByTestId("harness-keys")).toBeTruthy());
+  expect(screen.getByLabelText("FINGRID_API_KEY value")).toBeTruthy();   // key.txt already holds it, yet the field is offered here
+  expect(screen.getByLabelText("ENTSOE_API_KEY value")).toBeTruthy();
 });
 
 test("start a run, watch the progress, see the answer table", async () => {
@@ -84,6 +99,15 @@ test("start a run, watch the progress, see the answer table", async () => {
   const run = calls.find((c) => c.url.endsWith("/run"))!;
   expect(JSON.parse(run.body!).model).toMatch(/E4B/);
   expect(JSON.parse(run.body!)).toEqual({ preset: "dayahead", model: "ggml-org/gemma-4-E4B-it-GGUF:Q8_0" });   // only a preset name is sent, never text
+});
+
+test("the reasoning window on the chart shows the row's numbers and the model's reasoning", () => {
+  const pts = chartPoints(parseCsvBlock(answer)!);
+  expect(pts[1]).toMatchObject({ value: 42.5, low: 10, high: 90, confidence: "Low", drivers: "nordpool_price, fingrid" });
+  const { container } = render(<ReasonTip active payload={[{ payload: pts[1] }]} />);
+  const tip = container.querySelector('[data-testid="harness-tip"]')!;
+  expect(tip.textContent).toMatch(/07\/11\/2026 15:00.*Forecast 42.5 €\/MWh.*Likely range 10.0 – 90.0 €\/MWh.*Confidence Low.*Reasoning: nordpool_price, fingrid/);
+  expect(render(<ReasonTip active={false} payload={[{ payload: pts[1] }]} />).container.textContent).toBe("");   // nothing while not hovering
 });
 
 test("times from the model: ISO, no zone, Unix seconds; chart points sorted with a range", () => {

@@ -126,7 +126,8 @@ dd/mm/yyyy, and keeps its text short (no "i" tooltips; the chart legend explains
   and, when real prices are known, the average error). The method boxes show only their titles; a one-line note under them says what the machine-learning forecast is. Kept short on purpose: the page was found cluttered, so everything else was cut. All cards are plain white.
 - **Chart (in the middle, as big as possible):** forecast, likely range (blue), real price (red: solid = already published when the forecast was made, dashed = published after it; the legend and hover text say which), the forecast made 3 h earlier (grey) and a
   "Forecast made" line. The price axis is fixed (-50 to 350 EUR/MWh, from the data: the forecast line's 99.9th percentile and the likely range's 99th) so its numbers never move while time moves or plays;
-  rare larger values run off the top and show in the hover tooltip. Above it: 1 h / 1 day steps that glide smoothly, a date list, a bar over the whole period, a **Play** button (speeds 1x, 3x,
+  rare larger values run off the top and show in the hover tooltip. Pointing at the chart gives a small window with that quarter-hour's numbers and one line of **Why**
+  (the main drivers of that forecast). Above it: 1 h / 1 day steps that glide smoothly, a date list, a bar over the whole period, a **Play** button (speeds 1x, 3x,
   10x forecast hours per second; stops at the end). The **input switches** are stacked in a column to the left of the chart.
 - **Input switches (Machine-learning model only):** turn Fingrid's day-ahead **solar**, **wind** and **consumption** forecasts on or off. The page cannot
   re-run the model, so each of the 8 combinations is a separately trained model computed beforehand with `uv run scripts/run_variants.py`
@@ -171,7 +172,7 @@ The server (`harness/server.py`, written for this repo) listens on 127.0.0.1 onl
 On the command line the same progress lines appear with `--progress` (added to `harness/harness.py`).
 Fetched data is saved to `harness/reports/data/` (git-ignored); the model sees a short preview and the file path and is told to load the file in its Python code instead of pasting data into it (long pasted JSON made the small model write broken code). Tool calls that arrive cut off get their own retry budget of 4 and do not count towards the 10 turns.
 
-**API keys:** the Settings pop-up shows an input field for each missing key (Fingrid, ENTSO-E; OpenRouter only for the hosted provider) and saves it to `harness/key.txt` (git-ignored, 0600) without showing it again. On the command line the harness asks for missing keys on startup (Enter skips) and saves them there. Without the Fingrid key the `fingrid_*` sources fail. Example question that uses it (run from the repo folder):
+**API keys:** the panel shows an input field for each key it knows (Fingrid, ENTSO-E; OpenRouter only for the hosted provider), already-saved ones marked "saved", and saves a new value to `harness/key.txt` (git-ignored, 0600) without showing it again. On the command line the harness asks for missing keys on startup (Enter skips) and saves them there. Without the Fingrid key the `fingrid_*` sources fail. Example question that uses it (run from the repo folder):
 ```bash
 HARNESS_PROVIDER=llamacpp LLAMACPP_BASE_URL=http://localhost:9931/v1 \
   uv run --group harness python harness/harness.py -m "ggml-org/gemma-4-E4B-it-GGUF:Q8_0" -q "predict the Finnish imbalance price every 2 hours for the next 12 hours"

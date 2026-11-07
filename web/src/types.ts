@@ -37,6 +37,7 @@ export interface ChartPoint {
   prevP50: number | null;
   realKnown: number | null;
   realLater: number | null;
+  why: string;                     // the driver groups behind this point (SHAP), for the hover window
 }
 export type MethodKey = "current" | "harness";
 export type SetKey = "validation" | "final";

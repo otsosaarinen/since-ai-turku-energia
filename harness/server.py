@@ -31,15 +31,20 @@ LLAMA_URL = os.environ.get("LLAMACPP_BASE_URL", "http://localhost:9931/v1")
 PRESETS = {
     "imbalance": {
         "label": "Imbalance price, next 12 h",
-        "about": "Day-ahead price plus the typical spread (imbalance minus day-ahead) of the last 5 hours of real prices.",
+        "key": "FINGRID_API_KEY",  # the run cannot fetch the imbalance prices without it
+        "about": "Day-ahead price plus the live grid balance (production surplus/deficit, wind output) and the recent spread of real imbalance prices.",
         "prompt": (
-            "Forecast the Finnish imbalance price for every 2 hours of the next 12 hours (6 rows, starting at the next full hour). Follow these steps exactly. "
-            "1) get_data nordpool_price: take the Finland day-ahead spot price for each of those hours. "
+            "Forecast the Finnish imbalance price for every 2 hours of the next 12 hours (6 rows, starting at the next full hour). "
+            "The imbalance price follows the live grid balance, so use the live sources, not only history. Follow these steps exactly. "
+            "1) get_data nordpool_price: take the Finland day-ahead spot price for each of those hours (the market's own level). "
             "2) get_data fingrid_imbalance_price with start = 5 hours ago and end = now (ISO8601 UTC): you get about 20 quarter-hour prices. "
-            "Pair them with the spot price of the same quarter-hour and compute the spread = imbalance price minus spot, then its median, 10th and 90th percentile with run_python. "
-            "3) Forecast for each hour = spot of that hour + median spread; low = spot + 10th percentile spread; high = spot + 90th percentile spread. "
+            "3) get_data fingrid_surplus and get_data fingrid_wind_gen with start = 2 hours ago and end = now: the live production surplus/deficit in MW (negative = Finland is short of power) and the live wind production. "
+            "Also get_data fingrid_consumption for the same window (live demand). "
+            "4) With run_python read the saved files: pair each recent imbalance price with the spot price of the same quarter-hour and compute spread = imbalance price minus spot, then its median, 10th and 90th percentile. "
+            "Then correct the median by the live balance: a production deficit (negative surplus) or falling wind production means the grid needs more power, so raise the spread; a surplus or rising wind means it needs less, so lower it. State the shift you applied and the live values with their timestamps. "
+            "5) Forecast for each hour = spot of that hour + the corrected spread; low = spot + 10th percentile spread; high = spot + 90th percentile spread. "
             "Do NOT extrapolate a trend line. Clamp all values to -50..400 EUR/MWh. "
-            "4) End with the csv block, horizon=12h, metric=imbalance_price, one row per 2 hours. Keep the explanation under 10 lines. Only use hours later than the current time."
+            "6) End with the csv block, horizon=12h, metric=imbalance_price, one row per 2 hours. Keep the explanation under 10 lines and name the live source that moved your number. Only use hours later than the current time."
         ),
     },
     "dayahead": {
@@ -190,6 +195,9 @@ def _run_job(job: dict) -> None:
 
 def start_job(preset: str, model: str) -> dict | str:
     global JOB
+    need = PRESETS[preset].get("key")
+    if need and need not in keys_status()["set"]:
+        return f"set {need} first (the field above the Start button)"
     with LOCK:
         if JOB and JOB["status"] == "running":
             return "a run is already in progress"

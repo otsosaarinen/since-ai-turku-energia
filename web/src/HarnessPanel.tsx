@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Area, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Area, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, type TooltipProps } from "recharts";
 import { Button, Card, cn } from "@/design-system/the-reading-room-3066fa";
 
 // Panel for the "Harness prediction" box: starts a run of harness/harness.py on THIS computer (through the local control server,
@@ -68,18 +68,35 @@ export function parseCsvBlock(answer: string): { header: string[]; rows: string[
   return rows.length ? { header: rows[0], rows: rows.slice(1) } : null;
 }
 
-interface Point { ms: number; value: number; base: number; width: number }
+interface Point { ms: number; value: number; base: number; width: number; low: number; high: number; confidence: string; drivers: string }
 /** Points for the answer chart: value with its low-high range, from the time / value / low / high columns. */
 export function chartPoints(table: { header: string[]; rows: string[][] }): Point[] {
   const ix = (c: string) => table.header.indexOf(c);
+  const cell = (r: string[], c: string) => (ix(c) >= 0 ? (r[ix(c)] ?? "") : "");
   if (ix("time") < 0 || ix("value") < 0) return [];
   return table.rows.map((r) => {
     const value = Number(r[ix("value")]);
     const low = ix("low") >= 0 && r[ix("low")] !== "" ? Number(r[ix("low")]) : value;
     const high = ix("high") >= 0 && r[ix("high")] !== "" ? Number(r[ix("high")]) : value;
-    return { ms: timeMs(r[ix("time")]), value, base: Math.min(low, high, value), width: Math.max(Math.abs(high - low), 0) };
+    return { ms: timeMs(r[ix("time")]), value, base: Math.min(low, high, value), width: Math.max(Math.abs(high - low), 0), low, high,
+      confidence: cell(r, "confidence"), drivers: cell(r, "drivers") };
   }).filter((p) => Number.isFinite(p.ms) && Number.isFinite(p.value) && Number.isFinite(p.base) && Number.isFinite(p.width))
     .sort((a, b) => a.ms - b.ms);
+}
+
+/** The little window on hovering a point of the answer chart: the row's numbers and the model's own reasoning (its drivers) for that point. */
+export function ReasonTip({ active, payload }: TooltipProps<number, string>) {
+  const p = active ? (payload?.[0]?.payload as Point | undefined) : undefined;
+  if (!p) return null;
+  return (
+    <div data-testid="harness-tip" className="max-w-72 rounded-md border border-grey-light bg-white p-2 text-xs shadow-sm">
+      <div className="font-medium text-foreground">{fiTime(String(p.ms))}</div>
+      <div className="tabular-nums text-muted-foreground">Forecast {p.value.toFixed(1)} €/MWh</div>
+      {p.high !== p.low && <div className="tabular-nums text-muted-foreground">Likely range {p.low.toFixed(1)} – {p.high.toFixed(1)} €/MWh</div>}
+      {p.confidence && <div className="text-muted-foreground">Confidence {p.confidence}</div>}
+      {p.drivers && <div className="mt-1 whitespace-pre-wrap text-muted-foreground">Reasoning: {p.drivers}</div>}
+    </div>
+  );
 }
 
 /** The forecast of an answer as a chart: orange line, blue range. */
@@ -91,7 +108,7 @@ function AnswerChart({ points }: { points: Point[] }) {
           <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
           <XAxis type="number" dataKey="ms" domain={["dataMin", "dataMax"]} tickFormatter={hhmm} stroke="var(--muted-foreground)" fontSize={12} />
           <YAxis stroke="var(--muted-foreground)" fontSize={12} unit=" €" width={52} />
-          <Tooltip labelFormatter={(v) => fiTime(String(v))} formatter={(v: number, n: string) => [`${Number(v).toFixed(1)} €/MWh`, n]} />
+          <Tooltip content={ReasonTip} />
           <Area dataKey="base" stackId="b" stroke="none" fill="transparent" legendType="none" isAnimationActive={false} />
           <Area dataKey="width" stackId="b" stroke="none" fill="#46bedc" fillOpacity={0.3} name="Range (low to high)" isAnimationActive={false} />
           <Line dataKey="value" stroke="#c96a00" strokeWidth={3} dot={{ r: 3 }} name="Forecast" isAnimationActive={false} />
@@ -154,9 +171,7 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
   const [lines, setLines] = useState<string[]>([]);
   const [err, setErr] = useState("");
   const [keys, setKeys] = useState<Keys>({ set: [], missing: [] });
-  const [keyName, setKeyName] = useState("");
-  const [keyValue, setKeyValue] = useState("");
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [keyValue, setKeyValue] = useState<Record<string, string>>({});
   const nextRef = useRef(0);
   const logRef = useRef<HTMLOListElement>(null);
   const running = job?.status === "running";
@@ -176,7 +191,6 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
         if (!i || !Array.isArray(i.presets) || !Array.isArray(i.models)) { setInfo("outdated"); return; }   // an older server version
         setInfo(i);
         setKeys(i.keys ?? { set: [], missing: [] });
-        setKeyName(i.keys?.missing[0] ?? "");
         setModel((m) => m || i.models.find((x) => /E4B/i.test(x)) || i.models[0] || "");
         setPreset((p) => p || i.presets[0]?.id || "");
       }).catch(() => { if (!cancelled) setInfo("offline"); });
@@ -201,11 +215,11 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
       .then((d) => { nextRef.current = 0; setLines([]); apply(d.job); })
       .catch((e: Error) => setErr(e.message));
   };
-  const saveKey = () => {
+  const saveKey = (name: string) => () => {
     setErr("");
-    fetch(`${API}/keys`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: keyName, value: keyValue }) })
+    fetch(`${API}/keys`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, value: keyValue[name] ?? "" }) })
       .then(async (r) => { const d = await r.json(); if (!r.ok) throw new Error(d.error || String(r.status)); return d as Keys; })
-      .then((k) => { setKeys(k); setKeyValue(""); setKeyName(k.missing[0] ?? ""); })
+      .then((k) => { setKeys(k); setKeyValue((v) => ({ ...v, [name]: "" })); })
       .catch((e: Error) => setErr(e.message));
   };
   const stop = () => { fetch(`${API}/stop`, { method: "POST" }).catch(() => setErr("Could not stop the run.")); };
@@ -246,10 +260,26 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
               </div>
               <p className="text-xs text-muted-foreground" data-testid="harness-about">{info.presets.find((p) => p.id === preset)?.about}</p>
             </div>
-            <div className="grid grid-cols-3 gap-2">
-              <Button size="sm" variant="primary" className={cn(solidBtn, "w-full")} disabled={running || !model || !preset} onClick={start}>Start run</Button>
-              <Button size="sm" variant="outline" className={cn(outlineBtn, "w-full")} disabled={!running} onClick={stop}>Stop</Button>
-              <Button size="sm" variant="outline" className={cn(outlineBtn, "w-full")} aria-haspopup="dialog" onClick={() => setSettingsOpen(true)}>Settings</Button>
+            {(keys.missing.length > 0 || keys.set.length > 0) && (
+              <div className="flex flex-col gap-2 text-sm" data-testid="harness-keys">
+                <span className="font-medium">API keys</span>
+                <p className="text-muted-foreground">Some data sources need a key. It is saved to key.txt on this computer and not shown again.</p>
+                {[...keys.missing, ...keys.set].map((n) => (
+                  <div key={n} className="flex items-end gap-2">
+                    <label className="flex min-w-0 flex-1 flex-col gap-1">
+                      <span className="text-xs text-muted-foreground">{n}{keys.set.includes(n) ? " (saved)" : ""}</span>
+                      <input aria-label={`${n} value`} type="password" autoComplete="off" className="h-9 min-w-0 rounded-md border border-input bg-white px-2 text-sm"
+                        value={keyValue[n] ?? ""} onChange={(e) => setKeyValue((v) => ({ ...v, [n]: e.target.value }))} />
+                    </label>
+                    <Button size="sm" variant="outline" className={outlineBtn} disabled={!(keyValue[n] ?? "").trim()} onClick={saveKey(n)}>Save</Button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex items-center gap-3">
+              <Button size="sm" variant="primary" className={cn(solidBtn, "w-28")} disabled={running || !model || !preset} onClick={start}>Start run</Button>
+              <Button size="sm" variant="outline" className={cn(outlineBtn, "w-20")} disabled={!running} onClick={stop}>Stop</Button>
+              <span className="text-sm text-muted-foreground" data-testid="harness-state">{stateText(job)}</span>
             </div>
             {err && <p className="text-sm text-destructive" role="alert">{err}</p>}
           </div>

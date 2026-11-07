@@ -134,3 +134,7 @@ Not comparable with sections 1-7 (live forecasts, no backtest, no scoring). What
 
 Reading: the imbalance price has almost no memory after an hour (autocorrelation 0.09 at 1 h, section 3), so a line through the latest points cannot work, and a 4B model chooses the
 simplest method. A prompt that forces "day-ahead price + typical spread" is the next thing to try; not done. A bigger model (gemma-4 12B) was not tried.
+
+Change 8 Nov (`harness/server.py` PRESETS): the imbalance preset no longer forces "day-ahead price + typical spread only". The prompt now also pulls the live grid balance
+(`fingrid_surplus`, `fingrid_wind_gen`, `fingrid_consumption`, last 2 h) and moves the spread with it, so the run predicts from the harness's data sources and not only from recent
+history; the panel's one-line description says so. Not re-tested yet (needs the Llama app).

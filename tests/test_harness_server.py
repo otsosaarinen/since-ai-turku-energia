@@ -55,10 +55,18 @@ def _wait(pred, timeout=10):
 
 
 @pytest.fixture(autouse=True)
-def fresh_state():
+def fresh_state(monkeypatch):
     server.JOB = None
+    monkeypatch.setenv("FINGRID_API_KEY", "test")  # the imbalance preset refuses to start without it
     yield
     server.stop_job()
+
+
+def test_a_run_asks_for_the_key_it_needs(monkeypatch):
+    monkeypatch.delenv("FINGRID_API_KEY", raising=False)
+    monkeypatch.setattr(server, "KEYFILE", Path("/nonexistent/key.txt"))
+    assert "FINGRID_API_KEY" in server.start_job("imbalance", "m")
+    assert server.JOB is None
 
 
 def test_job_lifecycle_with_a_stand_in_for_the_harness(monkeypatch):

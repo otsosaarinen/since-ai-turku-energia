@@ -166,7 +166,12 @@ KEYFILE = Path(__file__).with_name("key.txt")
 
 def ask_keys(provider: str) -> None:
     """Ask for missing keys before the first request; Enter skips. Saved to key.txt (0600)."""
-    if os.environ.get("HARNESS_NO_KEYS") or not sys.stdin.isatty():
+    if os.environ.get("HARNESS_NO_KEYS"):
+        return
+    if not sys.stdin.isatty():  # no terminal to ask in: say what is missing instead of failing silently later
+        missing = [n for n in ("FINGRID_API_KEY", "ENTSOE_API_KEY") if not os.environ.get(n)]
+        if missing:
+            print(f"no terminal to ask for keys; missing {', '.join(missing)} (add NAME=value lines to {KEYFILE})", file=sys.stderr)
         return
     for name in ("OPENROUTER_API_KEY", "FINGRID_API_KEY", "ENTSOE_API_KEY"):
         if name == "OPENROUTER_API_KEY" and provider != "openrouter":
@@ -268,6 +273,8 @@ def export(answer: str) -> str:
     try:
         c, m = write_reports(answer, Path(__file__).with_name("reports"))
         print(f"wrote {c} and {m}", file=sys.stderr)
+        if len(c.read_text().splitlines()) < 2:
+            print("report: the answer had no csv table, so prediction.csv has only the header", file=sys.stderr)
     except Exception as e:
         print(f"report: {e}", file=sys.stderr)
     return answer

@@ -31,6 +31,20 @@ def test_plain_table_without_a_fence_is_written(tmp_path):
     assert "```" not in md_path.read_text()
 
 
+def test_a_table_with_other_columns_is_still_written(tmp_path):
+    """Small models drop or reorder columns; the files must still appear (a header mismatch used to raise and write nothing)."""
+    answer = "Prose.\n\n```csv\ntime,metric,value\n2026-11-07T18:00:00Z,imbalance_price,95.4\n```\n"
+    csv_path, md_path = report.write_reports(answer, tmp_path)
+    assert csv_path.read_text().splitlines() == ["time,metric,value", "2026-11-07T18:00:00Z,imbalance_price,95.4"]
+    assert "| time |" in md_path.read_text()
+
+
+def test_an_answer_without_a_table_still_writes_both_files(tmp_path):
+    csv_path, md_path = report.write_reports("No table here.", tmp_path)
+    assert csv_path.read_text().strip() == HEADER
+    assert md_path.read_text() == "No table here."
+
+
 def test_reasoning_is_remembered_only_for_rows_that_moved_over_3pct(tmp_path):
     """memory.json: one entry per row that moved more than 3% against the previous run, with the answer's prose."""
     import json

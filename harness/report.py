@@ -58,9 +58,12 @@ def _find_tables(answer: str):
     return found
 
 
-def _values(rows):
+def _values(rows, header=COLS):
     """{(time, metric): value} from csv rows; rows that are not data (the header, text) are skipped."""
-    t, m, v = COLS.index("time"), COLS.index("metric"), COLS.index("value")
+    try:
+        t, m, v = header.index("time"), header.index("metric"), header.index("value")
+    except ValueError:  # the model's table has no time/metric/value column: nothing to compare
+        return {}
     out = {}
     for r in rows:
         try:
@@ -70,15 +73,15 @@ def _values(rows):
     return out
 
 
-def remember(rows, reasoning, previous, outdir, now=None):
+def remember(rows, reasoning, previous, outdir, now=None, header=COLS):
     """Append the reasoning behind every row that moved > CHANGE against the previous run to memory.json.
 
     A store for the website's server side to show why a forecast changed; nothing here displays it.
     The reasoning is the answer's prose (the words around the table), kept to one entry per changed row.
     """
-    old = _values(previous)
+    old = _values(previous[1:], previous[0]) if previous else {}
     events = []
-    for (key, value) in _values(rows).items():
+    for (key, value) in _values(rows, header).items():
         before = old.get(key)
         if not before or abs(value - before) / abs(before) <= CHANGE:
             continue
@@ -107,27 +110,33 @@ def remember(rows, reasoning, previous, outdir, now=None):
 def write_reports(answer: str, outdir="reports"):
     """Extract the csv block(s), fenced or plain → prediction.csv and prediction.md. Returns (csv, md)."""
     blocks = list(_find_tables(answer))
-    rows, md = [], answer
+    rows, header, md = [], None, answer
     for b, original in blocks:
         r = [
             x
             for x in csv.reader(io.StringIO(b.strip()))
             if x and any(c.strip() for c in x)
         ]
-        if r and [c.strip().lower() for c in r[0]] != list(COLS):
-            raise ValueError(f"csv block header {r[0]} != {list(COLS)}")
-        rows += r[1:]  # validated header, append the data rows
+        if not r:
+            continue
+        cols = [c.strip() for c in r[0]]
+        if header is None:
+            header = cols  # the model's own columns; the prompt asks for COLS but small models vary
+        if cols != header:
+            continue  # a second table with other columns would mix rows
+        rows += r[1:]
         md = md.replace(original, _table(r))
+    header = header or list(COLS)
     out = pathlib.Path(outdir)
     out.mkdir(parents=True, exist_ok=True)
-    was = (out / "prediction.csv").read_text() if (out / "prediction.csv").exists() else ""
+    was = list(csv.reader(io.StringIO((out / "prediction.csv").read_text()))) if (out / "prediction.csv").exists() else []
     with (out / "prediction.csv").open("w", newline="") as f:
-        csv.writer(f).writerows([list(COLS)] + rows)
+        csv.writer(f).writerows([header] + rows)
     (out / "prediction.md").write_text(md)
     prose = answer
     for _, original in blocks:
         prose = prose.replace(original, "")
-    remember(rows, prose.strip(), list(csv.reader(io.StringIO(was))), out)
+    remember(rows, prose.strip(), was, out, header=header)
     return out / "prediction.csv", out / "prediction.md"
 
 

@@ -27,6 +27,18 @@ const SETS: Record<SetKey, { label: string }> = {
   validation: { label: "Validation 7 Sep – 4 Oct" },
   final: { label: "Test forecast 5 Oct – 1 Nov" },
 };
+const HELP: Record<string, string> = {
+  spot_price: "the day-ahead price of electricity", consumption_forecast_da: "the forecast of electricity consumption",
+  wind_forecast_da: "the wind power forecast", solar_forecast_da: "the solar power forecast",
+  residual_load_forecast: "the electricity demand left after wind and solar", latest_imbalance_price: "the latest imbalance prices",
+  imbalance_minus_spot_history: "how far recent imbalance prices were from the day-ahead price", mfrr_direction_history: "whether the grid recently needed more or less power",
+  mfrr_prices_and_activation: "prices and use of the manual balancing reserve", afrr_activity: "use of the automatic balancing reserve", cross_border_flows: "electricity flows to and from neighbouring countries",
+  neighbour_imbalance_prices: "imbalance prices in Sweden and Estonia", same_time_previous_days_imbalance: "the imbalance price at the same time on previous days",
+  consumption_actual: "measured electricity consumption", production_actual: "measured electricity production", neighbour_load_forecasts: "consumption forecasts of neighbouring countries",
+  fi_ee_capacity: "the transmission capacity between Finland and Estonia", calendar: "the time of day and the weekday", forecast_horizon: "how far ahead the hour is",
+};
+// Feature group -> plain words (HELP), for the "why" line of the chart's hover window.
+const driverWords = (s: string) => s.split(";").filter(Boolean).map((x) => HELP[x] || x.replaceAll("_", " ")).join("; ");
 // Data is stored in UTC; everything shown on the page is Finnish time (Europe/Helsinki, incl. the 25 Oct clock change).
 const FI = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Helsinki", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 const fiParts = (t: number | string): Record<string, string> => Object.fromEntries(FI.formatToParts(new Date(t)).map((p) => [p.type, p.value]));
@@ -61,8 +73,8 @@ function Info({ text, align = "center" }: { text: string; align?: "left" | "righ
   );
 }
 
-/** What you see when you point at the chart. */
-function ChartTip({ active, payload }: { active?: boolean; payload?: { payload: ChartPoint }[] }) {
+/** What you see when you point at the chart: the numbers and, in one line, why the forecast is what it is. */
+export function ChartTip({ active, payload }: { active?: boolean; payload?: { payload: ChartPoint }[] }) {
   if (!active || !payload || !payload.length) return null;
   const r = payload[0].payload;
   const real = r.realKnown ?? r.realLater;
@@ -73,8 +85,9 @@ function ChartTip({ active, payload }: { active?: boolean; payload?: { payload: 
         <p>Forecast: <b>{eur(r.p50)}</b></p>
         <p>Likely range: {eur(r.p10)} to {eur(r.p90)}</p>
       </>}
-      {real != null && <p>{r.realKnown != null ? "Real price (known at forecast time)" : "Real price (after the forecast)"}: <b>{eur(real)}</b></p>}
-      {r.prevP50 != null && <p className="text-muted-foreground">3 h earlier: {eur(r.prevP50)}</p>}
+      {real != null && <p>Real price: <b>{eur(real)}</b></p>}
+      {r.prevP50 != null && <p className="text-muted-foreground">Forecast made 3 h earlier: {eur(r.prevP50)}</p>}
+      {r.why && <p className="text-muted-foreground">Why: {driverWords(r.why)}</p>}
     </div>
   );
 }
@@ -291,11 +304,13 @@ export default function App() {
     const p10 = fut ? blend(A, B, ms, "p10") : null, p90 = fut ? blend(A, B, ms, "p90") : null;
     const e10 = past ? blend(EA, EB, ms, "p10") : null, e90 = past ? blend(EA, EB, ms, "p90") : null;
     const real = actualAt.get(iso(ms)) ?? null;
+    const src = fut ? (B.get(ms) ?? A.get(ms)) : (EB.get(ms) ?? EA.get(ms));
     chart.push({
       ms,
       base: p10, width: p10 == null || p90 == null ? null : p90 - p10, p10, p50: fut ? blend(A, B, ms, "p50") : null, p90,
       prevBase: e10, prevWidth: e10 == null || e90 == null ? null : e90 - e10, prevP50: past ? blend(EA, EB, ms, "p50") : null,
       realKnown: ms <= knownUntil ? real : null, realLater: ms >= lastKnown ? real : null,
+      why: src?.top_drivers ?? "",
     });
   }
   const ticks: number[] = [];
