@@ -127,6 +127,7 @@ export default function App() {
   const [on, setOn] = useState<Record<ToggleId, boolean>>({ solar: true, wind: true, consumption: true });
   const key = TOGGLES.map((t) => (on[t.id] ? "1" : "0")).join("");
   const variant = method === "current" && key !== "111";
+  const [inputsOpen, setInputsOpen] = useState(false);          // phones: the input switches sit in a pop-up
   const [vIndex, setVIndex] = useState<VariantIndex | null>(null);
   useEffect(() => { fetch("/data/variants/index.json").then((r) => (r.ok ? r.json() : null)).then(setVIndex).catch(() => setVIndex(null)); }, []);
   const { d, err, loading } = useData(variant ? `variants/${set}_${key}` : METHODS[method].files[set]);
@@ -221,11 +222,11 @@ export default function App() {
     <div className="flex flex-col gap-3">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-4xl font-bold uppercase leading-none tracking-wide">Imbalance price forecast<span className="text-brand">.</span></h1>
+          <h1 className="font-display text-3xl font-bold uppercase leading-none sm:text-4xl tracking-wide">Imbalance price forecast<span className="text-brand">.</span></h1>
           <p className="mt-1 text-sm text-muted-foreground">Since AI Hackathon 2026, Turku Energia challenge. The next 10 hours.</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm text-muted-foreground">Period
+        <div className="grid grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap">
+          <span className="col-span-2 text-sm text-muted-foreground sm:col-span-1">Period
             <Info align="right" text="Validation: a practice month with known real prices. Test forecast: the month that will be scored; its prices are unknown." />
           </span>
           {(Object.entries(SETS) as [SetKey, { label: string }][]).map(([k, v]) => (
@@ -234,15 +235,15 @@ export default function App() {
         </div>
       </header>
       {/* the two ways to predict: the highlighted box decides what the chart shows */}
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-2 gap-2 sm:gap-3">
         {(Object.entries(METHODS) as [MethodKey, (typeof METHODS)[MethodKey]][]).map(([k, m]) => {
           const active = method === k;
           return (
             <button key={k} type="button" aria-pressed={active} onClick={() => setMethod(k)}
-              className={cn("flex flex-col items-start rounded-lg border-2 border-b-4 px-5 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              className={cn("flex flex-col items-start rounded-lg border-2 border-b-4 px-3 py-2 text-left sm:px-5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 active ? "border-orange-fill border-b-brand bg-orange-fill text-white shadow-md" : "border-grey-light bg-white/90 text-foreground hover:bg-bg-light")}>
-              <span className="font-display text-xl font-bold uppercase tracking-wide">{m.title}</span>
-              <span className={cn("text-sm", active ? "text-white/90" : "text-muted-foreground")}>{m.sub}</span>
+              <span className="font-display text-base font-bold uppercase leading-tight tracking-wide sm:text-xl">{m.title}</span>
+              <span className={cn("hidden text-sm sm:inline", active ? "text-white/90" : "text-muted-foreground")}>{m.sub}</span>
             </button>
           );
         })}
@@ -334,12 +335,12 @@ export default function App() {
     <>
       {header}
       {/* one slim strip: what it means, the main drivers, the key numbers */}
-      <Card className="flex flex-wrap items-center gap-x-6 gap-y-3 border-l-4 border-l-brand bg-white/95 p-3 lg:h-32 lg:flex-nowrap lg:overflow-visible">
+      <Card className="flex flex-wrap items-center gap-x-6 gap-y-3 order-last border-l-4 border-l-brand bg-white/95 p-3 lg:order-none lg:h-32 lg:flex-nowrap lg:overflow-visible">
         <div className="min-w-64 flex-1 lg:min-w-0">
           <h2 className={cn(h2, "text-base")}>Summary.</h2>
-          <p className="line-clamp-1 leading-snug" title={dirText}>{dirText}</p>
-          <p className="mt-1 line-clamp-1 leading-snug" title={priceText}>{priceText}</p>
-          <p className="mt-1 line-clamp-2 text-sm leading-snug text-muted-foreground" title={driversText}>{driversText}</p>
+          <p className="leading-snug lg:line-clamp-1" title={dirText}>{dirText}</p>
+          <p className="mt-1 leading-snug lg:line-clamp-1" title={priceText}>{priceText}</p>
+          <p className="mt-1 text-sm lg:line-clamp-2 leading-snug text-muted-foreground" title={driversText}>{driversText}</p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           <Chip value={pct(maxHi)} label="high price spike" />
@@ -352,49 +353,54 @@ export default function App() {
       </Card>
 
       {/* the chart in the middle, as big as possible */}
-      <Card className="flex min-h-[26rem] flex-1 flex-col bg-white/95 p-4">
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-          <h2 className={cn(h2, "text-2xl")}>Price forecast.
+      <Card className="flex min-h-[26rem] flex-1 flex-col gap-2 bg-white/95 p-3 sm:p-4 lg:gap-0">
+        <div className="contents lg:flex lg:flex-wrap lg:items-center lg:justify-between lg:gap-x-4 lg:gap-y-2">
+          <h2 className={cn(h2, "order-1 text-2xl lg:order-none")}>Price forecast.
           </h2>
-          <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
-            <Button size="sm" variant="outline" className={outlineBtn} onClick={() => step(-24)}>◀ 1 day</Button>
-            <Button size="sm" variant="outline" className={outlineBtn} onClick={() => step(-1)}>◀ 1 h</Button>
-            <select aria-label="date" className={selectCls} value={dayOf(origin)} onChange={(e) => { const i = ix.origins.findIndex((x) => dayOf(x) === e.target.value); if (i >= 0) goTo(i, false); }}>
+          <div className="order-3 flex min-w-0 flex-wrap items-center gap-2 lg:order-none lg:flex-1 lg:justify-end">
+            <Button size="sm" variant="outline" className={cn(outlineBtn, "order-3 basis-[22%] flex-1 lg:order-none lg:flex-none")} onClick={() => step(-24)}>◀ 1 day</Button>
+            <Button size="sm" variant="outline" className={cn(outlineBtn, "order-3 basis-[22%] flex-1 lg:order-none lg:flex-none")} onClick={() => step(-1)}>◀ 1 h</Button>
+            <select aria-label="date" className={cn(selectCls, "order-4 min-w-0 flex-1 lg:order-none lg:flex-none")} value={dayOf(origin)} onChange={(e) => { const i = ix.origins.findIndex((x) => dayOf(x) === e.target.value); if (i >= 0) goTo(i, false); }}>
               {days.map((dd) => <option key={dd} value={dd}>{isoDayToFi(dd)}</option>)}
             </select>
-            <input type="range" aria-label="whole period" className="min-w-32 max-w-md flex-1 accent-brand" min={0} max={last} step="any" value={fpos} onChange={(e) => goTo(+e.target.value, false)} />
-            <b data-testid="when" className="font-display text-xl tabular-nums text-navy">{mdOf(origin)} {hhmm(origin)}</b>
-            <Button size="sm" variant="outline" className={outlineBtn} onClick={() => step(1)}>1 h ▶</Button>
-            <Button size="sm" variant="outline" className={outlineBtn} onClick={() => step(24)}>1 day ▶</Button>
-            <Button size="sm" variant="primary" className={cn(solidBtn, "w-24")} onClick={togglePlay}>{playing ? "❚❚ Pause" : "▶ Play"}</Button>
-            <Button size="sm" variant="outline" className={cn(outlineBtn, "w-14")} aria-label={`Playback speed ${speed} hours per second`}
+            <input type="range" aria-label="whole period" className="order-2 w-full basis-full accent-brand lg:order-none lg:w-auto lg:min-w-32 lg:max-w-md lg:flex-1 lg:basis-auto" min={0} max={last} step="any" value={fpos} onChange={(e) => goTo(+e.target.value, false)} />
+            <b data-testid="when" className="order-1 basis-full text-center font-display text-2xl tabular-nums text-navy lg:order-none lg:basis-auto lg:text-xl">{mdOf(origin)} {hhmm(origin)}</b>
+            <Button size="sm" variant="outline" className={cn(outlineBtn, "order-3 basis-[22%] flex-1 lg:order-none lg:flex-none")} onClick={() => step(1)}>1 h ▶</Button>
+            <Button size="sm" variant="outline" className={cn(outlineBtn, "order-3 basis-[22%] flex-1 lg:order-none lg:flex-none")} onClick={() => step(24)}>1 day ▶</Button>
+            <Button size="sm" variant="primary" className={cn(solidBtn, "order-4 w-24 lg:order-none")} onClick={togglePlay}>{playing ? "❚❚ Pause" : "▶ Play"}</Button>
+            <Button size="sm" variant="outline" className={cn(outlineBtn, "order-4 w-14 lg:order-none")} aria-label={`Playback speed ${speed} hours per second`}
               onClick={() => setSpeed(speed === 1 ? 3 : speed === 3 ? 10 : 1)}>{speed}×</Button>
           </div>
         </div>
-        <div className="mt-2 flex min-h-72 flex-1 gap-4">
+        <div className="order-2 flex min-h-72 flex-1 flex-col gap-2 lg:order-none lg:mt-2 lg:flex-row lg:gap-4">
         {method === "current" && (
-          <aside className="flex w-56 shrink-0 flex-col gap-3 border-r border-grey-light pr-4" data-testid="toggles">
-            <div className="text-sm text-muted-foreground">
-              <b className="font-medium text-foreground">Forecast inputs.</b> Switch one off to see a model trained without it.
-            </div>
-            {TOGGLES.map((t) => (
-              <label key={t.id} className="flex cursor-pointer items-center gap-2 text-sm">
-                <button type="button" role="switch" aria-checked={on[t.id]} aria-label={t.label} onClick={() => setOn({ ...on, [t.id]: !on[t.id] })}
-                  className={cn("relative h-6 w-11 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", on[t.id] ? "bg-orange-fill" : "bg-grey-brand")}>
-                  <span className={cn("absolute top-0.5 size-5 rounded-full bg-white shadow transition-all", on[t.id] ? "left-[1.375rem]" : "left-0.5")} />
-                </button>
-                <span><b className="font-medium">{t.label}</b> <span className="text-muted-foreground">{on[t.id] ? "on" : "off"}</span></span>
-              </label>
-            ))}
-            <div className="min-h-16 text-sm text-muted-foreground" data-testid="variant-metrics">
-              {vIndex && vIndex.metrics && vIndex.metrics[key] && vIndex.metrics["111"] && (<>
-                Average error on the validation month: <b className="text-foreground">{vIndex.metrics[key].mae.toFixed(1)}</b> €/MWh
-                {key !== "111" && <> ({(vIndex.metrics[key].mae - vIndex.metrics["111"].mae >= 0 ? "+" : "") + (vIndex.metrics[key].mae - vIndex.metrics["111"].mae).toFixed(2)} vs all inputs on)</>}
-              </>)}
+          <aside className="relative shrink-0 lg:w-56 lg:border-r lg:border-grey-light lg:pr-4" data-testid="toggles">
+            <Button type="button" size="sm" variant="outline" className={cn(outlineBtn, "lg:hidden")} aria-expanded={inputsOpen} onClick={() => setInputsOpen(!inputsOpen)}>
+              Forecast inputs{key !== "111" ? " (changed)" : ""} {inputsOpen ? "▴" : "▾"}
+            </Button>
+            <div className={cn(inputsOpen ? "flex" : "hidden", "absolute left-0 top-full z-20 mt-2 w-72 flex-col gap-3 rounded-md border border-border bg-white p-3 shadow-lg lg:static lg:mt-0 lg:flex lg:w-auto lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none")}>
+              <div className="text-sm text-muted-foreground">
+                <b className="font-medium text-foreground">Forecast inputs.</b> Switch one off to see a model trained without it.
+              </div>
+              {TOGGLES.map((t) => (
+                <label key={t.id} className="flex cursor-pointer items-center gap-2 text-sm">
+                  <button type="button" role="switch" aria-checked={on[t.id]} aria-label={t.label} onClick={() => setOn({ ...on, [t.id]: !on[t.id] })}
+                    className={cn("relative h-6 w-11 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", on[t.id] ? "bg-orange-fill" : "bg-grey-brand")}>
+                    <span className={cn("absolute top-0.5 size-5 rounded-full bg-white shadow transition-all", on[t.id] ? "left-[1.375rem]" : "left-0.5")} />
+                  </button>
+                  <span><b className="font-medium">{t.label}</b> <span className="text-muted-foreground">{on[t.id] ? "on" : "off"}</span></span>
+                </label>
+              ))}
+              <div className="text-sm text-muted-foreground lg:min-h-16" data-testid="variant-metrics">
+                {vIndex && vIndex.metrics && vIndex.metrics[key] && vIndex.metrics["111"] && (<>
+                  Average error on the validation month: <b className="text-foreground">{vIndex.metrics[key].mae.toFixed(1)}</b> €/MWh
+                  {key !== "111" && <> ({(vIndex.metrics[key].mae - vIndex.metrics["111"].mae >= 0 ? "+" : "") + (vIndex.metrics[key].mae - vIndex.metrics["111"].mae).toFixed(2)} vs all inputs on)</>}
+                </>)}
+              </div>
             </div>
           </aside>
         )}
-        <div className="min-w-0 flex-1">
+        <div className="h-80 min-w-0 shrink-0 lg:h-auto lg:flex-1">
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={chart} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
               <CartesianGrid stroke={C.grid} strokeDasharray="3 3" vertical={false} />
@@ -416,7 +422,7 @@ export default function App() {
           </ResponsiveContainer>
         </div>
         </div>
-        <p className="mt-1 text-xs text-muted-foreground">
+        <p className="order-4 text-xs text-muted-foreground lg:order-none lg:mt-1">
           Real prices arrive about 1 hour late, so the forecast starts blind: at {hhmm(origin)} the latest known price is from {hhmm(iso(o0 - 75 * 60 * 1000))}. Finnish time.
         </p>
       </Card>

@@ -22,6 +22,7 @@ pretrained or third-party models. TypeScript (Apache-2.0) for the web viewer. We
 | class-variance-authority | component variants | Apache-2.0 |
 | @radix-ui/react-slot | button `asChild` helper | MIT |
 | Fira Sans Extra Condensed (headlines), Libre Franklin (body, stands in for Franklin Gothic Book), Source Serif 4 (key figures, stands in for Century Schoolbook), all loaded from Google Fonts | typography per the Turku Energia graphic guidelines (the brand fonts Trade Gothic, Franklin Gothic Book and Century Schoolbook are named first in the font stack but are not shipped; they are used only where installed) | SIL Open Font License 1.1 |
+| Vercel (optional hosting of the built static site for a demo; the forecast data goes online with it, see the licence note in `README.md`) | demo link | Vercel terms of service; delete the project after the event |
 | "Turku Energian graafinen ohjeisto" (Sep 2024), supplied by the team | colours, typography and tone rules followed by the viewer; no logo or images from it are used | internal brand guide, not redistributed |
 
 Of the template, only the design system was used. Its TanStack Start, Cloudflare, `lovable-tagger` and preview-plugin parts were left out.

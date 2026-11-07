@@ -113,7 +113,7 @@ All settings (periods, seed, number of seeds, LightGBM parameters) are in `confi
 ```bash
 uv run scripts/show_origin.py 2026-09-20T09:00   # (optional) one validation origin in the terminal instead of the website (UTC)
 ```
-The website (`web/`, React + TypeScript + Vite + Recharts) is one screen without scrolling. It follows the Turku Energia graphic guidelines (white page, orange
+The website (`web/`, React + TypeScript + Vite + Recharts) is one screen without scrolling on a laptop screen; on a phone or narrow window it becomes one scrolling column: method boxes and chart first, the time controls under the chart, the summary below, and the input switches behind a "Forecast inputs" button. It follows the Turku Energia graphic guidelines (white page, orange
 as the accent colour, blue and grey structure with WCAG AA contrast, bold condensed capital headlines, plain wording), uses Finnish time and
 dd/mm/yyyy, and has only two "i" tooltips (period buttons, key numbers; the chart legend explains the lines). What is on the screen, top to bottom:
 - **Period buttons:** the validation month (with real prices) or the test forecast (without).
@@ -135,6 +135,20 @@ dd/mm/yyyy, and has only two "i" tooltips (period buttons, key numbers; the char
 **Where the website's data comes from.** `web/public/data/` (git-ignored: forecasts and real imbalance prices, no spot prices) is created by
 `uv run scripts/export_web_data.py` from `outputs/` on the model owner's computer (`start_web.sh` calls it automatically), or copied from them
 (Part A, step 3). `app/app.py` is an older, optional Streamlit viewer (`uv run --group app streamlit run app/app.py`).
+
+## Put the website online for a demo (optional)
+The website only reads the ready-made JSON files in `web/public/data/`, so it is a plain static site: no server, Python or model is needed online.
+```bash
+cd web
+npm install
+npm run build                  # type-checks, then writes the site (including the data files) to web/dist/
+npx vercel login               # once
+npx vercel deploy dist         # prints a .vercel.app link; add --prod for a public link
+```
+A plain preview link is only visible to people logged in to your Vercel account; turn off "Vercel Authentication" in the project's Deployment Protection
+settings to share it. **Licence:** the forecasts are built on the Nord Pool spot data, which is hackathon-only. Keep the link unlisted, ask the organisers
+before keeping it public, and delete the Vercel project after the event (`npx vercel remove <project-name>`). Local alternative without uploading anything:
+`npm run dev -- --host` and share a tunnel such as `npx cloudflared tunnel --url http://localhost:5173`. Not tested end to end.
 
 ## Layout
 - `src/availability.py` availability filter (fast index, same result as the organiser's `rows_available_at`)
