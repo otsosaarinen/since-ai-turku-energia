@@ -1,25 +1,25 @@
-export type ThemeMode = "system" | "light" | "dark";
+export type ThemeMode = "light" | "dark";
 
 const THEME_KEY = "turku_energia_theme";
 
 export function getStoredTheme(): ThemeMode {
-  if (typeof window === "undefined") return "system";
+  if (typeof window === "undefined") return "light";
   try {
     const val = localStorage.getItem(THEME_KEY);
-    if (val === "light" || val === "dark" || val === "system") {
+    if (val === "light" || val === "dark") {
       return val;
     }
   } catch {
     // ignore localStorage errors (e.g. private mode)
   }
-  return "system";
+  if (typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+    return "dark";
+  }
+  return "light";
 }
 
 export function isDarkActive(mode: ThemeMode = getStoredTheme()): boolean {
-  if (typeof window === "undefined") return false;
-  if (mode === "dark") return true;
-  if (mode === "light") return false;
-  return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  return mode === "dark";
 }
 
 export function applyTheme(mode: ThemeMode = getStoredTheme()): void {

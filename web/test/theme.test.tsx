@@ -17,8 +17,8 @@ describe("Theme and Dark Mode", () => {
     document.documentElement.className = "";
   });
 
-  test("getStoredTheme returns system by default", () => {
-    expect(getStoredTheme()).toBe("system");
+  test("getStoredTheme returns light by default when prefers-color-scheme is light", () => {
+    expect(getStoredTheme()).toBe("light");
   });
 
   test("setTheme switches to dark mode and updates documentElement and localStorage", () => {
@@ -39,7 +39,7 @@ describe("Theme and Dark Mode", () => {
     expect(isDarkActive()).toBe(false);
   });
 
-  test("ThemeToggle in App renders and toggles dark and light modes", () => {
+  test("ThemeToggle in App renders Light and Dark buttons and toggles between them", () => {
     global.ResizeObserver = class {
       observe() {}
       unobserve() {}
@@ -52,11 +52,10 @@ describe("Theme and Dark Mode", () => {
 
     const darkBtn = screen.getByRole("button", { name: /Dark/i });
     const lightBtn = screen.getByRole("button", { name: /Light/i });
-    const autoBtn = screen.getByRole("button", { name: /Auto/i });
 
     expect(darkBtn).toBeTruthy();
     expect(lightBtn).toBeTruthy();
-    expect(autoBtn).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Auto/i })).toBeNull();
 
     // Click dark mode
     fireEvent.click(darkBtn);

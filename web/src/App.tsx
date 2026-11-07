@@ -119,21 +119,6 @@ function ThemeToggle() {
         <span aria-hidden="true">🌙</span>
         <span>Dark</span>
       </button>
-      <button
-        type="button"
-        aria-pressed={mode === "system"}
-        onClick={() => handleSelect("system")}
-        title="Follow system appearance"
-        className={cn(
-          "flex items-center gap-1.5 rounded-md px-2.5 py-1 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-          mode === "system"
-            ? "bg-primary text-primary-foreground font-semibold shadow-xs"
-            : "text-muted-foreground hover:text-foreground"
-        )}
-      >
-        <span aria-hidden="true">💻</span>
-        <span>Auto</span>
-      </button>
     </div>
   );
 }
