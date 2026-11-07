@@ -38,7 +38,8 @@ MODELS = {  # "" → ask the running server what it loaded
     "openrouter": os.environ.get("OPENROUTER_MODEL", "openai/gpt-4o-mini"),
 }
 MODEL = ""  # set by main()
-MAX_TURNS = 10  # tool-call budget per user message
+MAX_TURNS = 10  # tool turns per user message
+MAX_CALLS = 10  # hard cap on tool calls per user message (one turn may ask for several)
 PROGRESS = "--progress" in sys.argv or os.environ.get("HARNESS_PROGRESS") == "1"
 
 
@@ -212,9 +213,9 @@ client: OpenAI = None  # set by main()
 
 
 def chat(messages: list) -> str:
-    """One LLM turn; handles tool calls in a loop up to MAX_TURNS."""
-    turn, broken = 0, 0  # broken tool calls get their own small budget and do not use up the tool turns
-    while turn < MAX_TURNS:
+    """One LLM turn; handles tool calls in a loop for at most MAX_TURNS turns and MAX_CALLS tool calls."""
+    turn, broken, calls = 0, 0, 0  # broken tool calls get their own small budget and do not use up the tool turns
+    while turn < MAX_TURNS and calls < MAX_CALLS:
         turn += 1
         log(f"[turn {turn}/{MAX_TURNS}] asking the model")
         try:
@@ -240,6 +241,7 @@ def chat(messages: list) -> str:
             log("[think] " + json.dumps(think))
         if msg.tool_calls:
             messages.append(msg)
+            calls += len(msg.tool_calls)
             for tc in msg.tool_calls:
                 fn = FUNCS.get(tc.function.name)
                 log(f"[tool] {tc.function.name} {tc.function.arguments[:400]}")
@@ -265,7 +267,7 @@ def chat(messages: list) -> str:
             log("[done] final answer received")
             messages.append({"role": "assistant", "content": msg.content})
             return msg.content
-    log("[stop] tool turn budget used up")
+    log("[stop] tool call budget used up")
     return "(max tool turns reached)"
 
 def export(answer: str) -> str:

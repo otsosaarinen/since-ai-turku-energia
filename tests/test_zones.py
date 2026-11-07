@@ -1,6 +1,9 @@
 """Guards the baked zone table and the correlation maths; no network."""
+import sys
+from pathlib import Path
 
-from harness import zones
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "harness"))  # harness/ is not a package
+import zones  # noqa: E402  (imported after the path insert)
 
 
 def test_table_covers_every_nord_pool_zone():

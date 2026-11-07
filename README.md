@@ -44,8 +44,8 @@ npm run dev
 ```
 **5. Open http://localhost:5173** in your browser. Stop the website with Ctrl+C in the terminal.
 
-Next time you only need `cd web` and `npm run dev`. On macOS and Linux, `./scripts/start_web.sh` from the repo folder does the same
-(and on the model owner's computer it also rebuilds the website's data from `outputs/` first). It does not work on Windows.
+Next time you only need `cd web` and `npm run dev`. On macOS and Linux, `./scripts/start.sh` from the repo folder starts the website as well as the Harness panel's control server
+(and on the model owner's computer it rebuilds the website's data from `outputs/` first). It does not work on Windows.
 
 Other website commands (run inside the `web/` folder): `npm test` (19 tests), `npm run typecheck` (TypeScript check), `npm run build` (production build).
 What the page shows is described under "What the website shows" further down.
@@ -135,7 +135,7 @@ dd/mm/yyyy, and keeps its text short (no "i" tooltips; the chart legend explains
   Residual-load features combine all three forecasts, so they are removed whenever any switch is off. Real cloud or sunlight data is not in the model.
 
 **Where the website's data comes from.** `web/public/data/` (git-ignored: forecasts and real imbalance prices, no spot prices) is created by
-`./scripts/start.sh --data` from `outputs/` on the model owner's computer (`start_web.sh` calls it automatically), or copied from them
+`./scripts/start.sh --data` from `outputs/` on the model owner's computer (`start.sh` also does it when it starts the website), or copied from them
 (Part A, step 3). `app/app.py` is an older, optional Streamlit viewer (`uv run --group app streamlit run app/app.py`).
 
 ## Put the website online for a demo (optional)
@@ -160,13 +160,13 @@ one uv project: `uv sync --group harness` installs its packages (openai, scipy, 
 HARNESS_PROVIDER=llamacpp LLAMACPP_BASE_URL=http://localhost:9931/v1 \
   uv run --group harness python harness/harness.py -m "ggml-org/gemma-4-E4B-it-GGUF:Q8_0" -q "what is 17*23? use python"
 ```
-**Start and watch runs from the website.** Start the local control server in one terminal and the website in another:
+**Start and watch runs from the website.** `./scripts/start.sh` starts the control server (127.0.0.1:8765) and the website (http://localhost:5173) together; the run itself needs the local model server (Llama app, port 9931):
 ```bash
-./scripts/start.sh             # control server on 127.0.0.1:8765; needs the local model server (Llama app, port 9931)
-./scripts/start_web.sh         # the website; pick "Harness prediction", choose a model, press Start run
+./scripts/start.sh             # control server + website, one Ctrl+C stops both
 ```
+Then pick "Harness prediction", choose a model and press Start run.
 The panel has a short intro and two fixed forecast choices (imbalance price next 12 h; day-ahead price next 12 h) with a one-line description under the buttons. A **Settings** button opens a pop-up with the model picker (only the small gemma-4 E4B model; the server filters the Llama app's model list; `HARNESS_MODEL_FILTER=E4B,12B ./scripts/start.sh` offers more) and the API keys. The elapsed time / "Done in …" sits next to the "Progress." heading; the prompt text cannot be edited on the page and lives in `harness/server.py` (`PRESETS`), which accepts only a preset name,
-shows the run live as a short list of steps (one per call to the model, named by what it did, e.g. "Step 2: Fetching nordpool_price"; small compact text, finished steps have a check mark, the current one a spinner, the list has no scroll box of its own: the Harness page grows and scrolls as a whole, a failed fetch shows its error under the step, and the model's reasoning is behind a "Reasoning" fold-out under the step, shown in full, from the `[think]` progress line) and, when finished, the answer (the table is found even if the model forgets the code fence) as a chart (orange forecast line, blue low-to-high range) in Finnish time; the table is shown instead when the answer has too few points for a chart. `[turn k/10]` counts calls to the model; 10 is only the maximum, a run ends when the model decides to answer. The server tells the model the current UTC time and to use ISO timestamps (small models otherwise send words like "5 hours ago" to the data sources). It works only on your own computer with the Vite dev server
+shows the run live as a short list of steps (one per call to the model, named by what it did, e.g. "Step 2: Fetching nordpool_price"; small compact text, finished steps have a check mark, the current one a spinner, the list has no scroll box of its own: the Harness page grows and scrolls as a whole, a failed fetch shows its error under the step, and the model's reasoning is behind a "Reasoning" fold-out under the step, shown in full, from the `[think]` progress line) and, when finished, the answer (the table is found even if the model forgets the code fence) as a chart (orange forecast line, blue low-to-high range) in Finnish time; the table is shown instead when the answer has too few points for a chart. `[turn k/10]` counts calls to the model; a run stops after 10 tool calls in all (`MAX_CALLS` in `harness/harness.py`) and ends earlier when the model decides to answer. The server tells the model the current UTC time and to use ISO timestamps (small models otherwise send words like "5 hours ago" to the data sources). It works only on your own computer with the Vite dev server
 (the proxy `/harness-api` in `web/vite.config.ts`); on a hosted copy (Vercel) it only explains how to start the server. One run at a time, stopped after 20 minutes, **Stop** ends it.
 The server (`harness/server.py`, written for this repo) listens on 127.0.0.1 only and refuses any request whose Host or Origin is not localhost, because a run executes model-written Python.
 **Live alerts.** The server also polls the price-relevant feeds every 5 minutes (`ALERT_POLL_S`): MET Norway weather warnings for Turku, GDACS disasters in the Nordic price areas, Caruna outages of 10+ customers, and a wind forecast shift of 3 m/s or more between the 12 h behind and the 12 h ahead (`src/live_alerts.py`). A new alert starts a fresh imbalance run on its own, so the prediction is recalculated without pressing Start; the panel lists the alerts and, when the browser grants permission, sends a desktop notification. `GET /api/alerts` returns the last poll. The first poll only seeds the seen set, so restarting the server does not rerun the forecast.
@@ -187,6 +187,6 @@ removes the harness packages again; run `uv sync --group harness` to get them ba
 - `src/availability.py` availability filter (fast index, same result as the organiser's `rows_available_at`)
 - `src/features.py` features per (origin, step) and the input groups the viewer can switch off | `src/train.py`, `src/predict.py` models |
   `src/evaluate.py` validator and scorer wrappers | `src/exports.py` viewer tables | `src/baseline.py` organiser baseline
-- `scripts/` `run_validation.py`, `run_rolling.py`, `run_final.py`, `run_variants.py`, `exp_postproc.py`, `start_web.sh`, `start.sh`, `show_origin.py`,
+- `scripts/` `run_validation.py`, `run_rolling.py`, `run_final.py`, `run_variants.py`, `exp_postproc.py`, `start.sh`, `show_origin.py`,
   `train_cpu.sbatch` (LUMI Slurm job for the final run; untested, LUMI is optional because local training takes about a minute)
 - `harness/` the harness code (second method) and `server.py`, the control server behind the website panel | `web/` React viewer (`web/src/design-system/` = Turku Energia design components) | `tests/` Python tests | `configs/default.yaml` all model settings
