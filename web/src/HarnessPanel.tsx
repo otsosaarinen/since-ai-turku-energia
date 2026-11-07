@@ -14,7 +14,7 @@ export interface JobView { id: string; status: "running" | "done" | "error" | "s
 interface LiveAlert { id: string; kind: string; severity: string; title: string; detail: string; source: string; at: string | null; until: string | null }
 
 const solidBtn = "border-2 border-orange-fill bg-orange-fill text-white hover:bg-orange-fill/90";
-const outlineBtn = "border-2 border-navy bg-white text-navy hover:bg-bg-light";
+const outlineBtn = "border-2 border-navy bg-card text-navy hover:bg-bg-light";
 const FI = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Helsinki", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 
 /** Milliseconds for a time written by the model: ISO text (no zone given = UTC) or Unix seconds / milliseconds. NaN if unreadable. */
@@ -90,7 +90,7 @@ export function ReasonTip({ active, payload }: TooltipProps<number, string>) {
   const p = active ? (payload?.[0]?.payload as Point | undefined) : undefined;
   if (!p) return null;
   return (
-    <div data-testid="harness-tip" className="max-w-72 rounded-md border border-grey-light bg-white p-2 text-xs shadow-sm">
+    <div data-testid="harness-tip" className="max-w-72 rounded-md border border-border bg-card p-2 text-xs text-card-foreground shadow-sm">
       <div className="font-medium text-foreground">{fiTime(String(p.ms))}</div>
       <div className="tabular-nums text-muted-foreground">Forecast {p.value.toFixed(1)} €/MWh</div>
       {p.high !== p.low && <div className="tabular-nums text-muted-foreground">Likely range {p.low.toFixed(1)} – {p.high.toFixed(1)} €/MWh</div>}
@@ -112,7 +112,7 @@ function AnswerChart({ points }: { points: Point[] }) {
           <Tooltip content={ReasonTip} />
           <Area dataKey="base" stackId="b" stroke="none" fill="transparent" legendType="none" isAnimationActive={false} />
           <Area dataKey="width" stackId="b" stroke="none" fill="#46bedc" fillOpacity={0.3} name="Range (low to high)" isAnimationActive={false} />
-          <Line dataKey="value" stroke="#c96a00" strokeWidth={3} dot={{ r: 3 }} name="Forecast" isAnimationActive={false} />
+          <Line dataKey="value" stroke="var(--color-chart-p50, #c96a00)" strokeWidth={3} dot={{ r: 3 }} name="Forecast" isAnimationActive={false} />
         </ComposedChart>
       </ResponsiveContainer>
     </div>
@@ -264,7 +264,7 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
 
   const models = info !== null && typeof info === "object" ? info.models : [];
   return (
-    <Card className="flex flex-1 flex-col gap-3 bg-white p-4">
+    <Card className="flex flex-1 flex-col gap-3 bg-card p-4">
       <h2 className="font-display text-2xl font-bold uppercase tracking-wide">Harness prediction.</h2>
       {info === null && <p className="text-muted-foreground">Looking for the harness server …</p>}
       {info === "offline" && (
@@ -300,9 +300,9 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
               <div className="mt-2 flex flex-col gap-3">
                 <label className="flex flex-col gap-1 text-sm">
                   <span className="font-medium">Model</span>
-                  <select aria-label="harness model" className="h-9 w-full rounded-md border border-input bg-white px-3 text-sm" value={model} disabled={running} onChange={(e) => setModel(e.target.value)}>
-                    {models.length === 0 && <option value="">No model found: start the Llama app</option>}
-                    {models.map((m) => <option key={m} value={m}>{m}</option>)}
+                  <select aria-label="harness model" className="h-9 w-full rounded-md border border-input bg-card px-3 text-sm text-foreground" value={model} disabled={running} onChange={(e) => setModel(e.target.value)}>
+                    {models.length === 0 && <option value="" className="bg-card text-foreground">No model found: start the Llama app</option>}
+                    {models.map((m) => <option key={m} value={m} className="bg-card text-foreground">{m}</option>)}
                   </select>
                 </label>
                 {(keys.missing.length > 0 || keys.set.length > 0) && (
@@ -313,7 +313,7 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
                       <div key={n} className="flex items-end gap-2">
                         <label className="flex min-w-0 flex-1 flex-col gap-1">
                           <span className="text-xs text-muted-foreground">{n}{keys.set.includes(n) ? " (saved)" : ""}</span>
-                          <input aria-label={`${n} value`} type="password" autoComplete="off" className="h-9 min-w-0 rounded-md border border-input bg-white px-2 text-sm"
+                          <input aria-label={`${n} value`} type="password" autoComplete="off" className="h-9 min-w-0 rounded-md border border-input bg-card px-2 text-sm text-foreground placeholder:text-muted-foreground"
                             value={keyValue[n] ?? ""} onChange={(e) => setKeyValue((v) => ({ ...v, [n]: e.target.value }))} />
                         </label>
                         <Button size="sm" variant="outline" className={outlineBtn} disabled={!(keyValue[n] ?? "").trim()} onClick={saveKey(n)}>Save</Button>
@@ -354,16 +354,16 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
                 <h3 className="font-display text-base font-bold uppercase tracking-wide">Progress.</h3>
                 <span className="ml-auto text-sm text-muted-foreground" data-testid="harness-state">{stateText(job)}</span>
               </summary>
-              <ol ref={logRef} data-testid="harness-log" className="mt-2 rounded-lg border border-grey-light bg-white p-3 text-xs">
+              <ol ref={logRef} data-testid="harness-log" className="mt-2 rounded-lg border border-border bg-card p-3 text-xs">
                 {steps.length === 0 && (
                   <li className="flex items-center gap-2 text-muted-foreground">{running ? <><Spinner /> Starting the model …</> : "Nothing yet."}</li>
                 )}
                 {steps.map((st, i) => (
                   <li key={i} data-state={st.state} className="relative flex gap-2 pb-2.5 last:pb-0">
-                    {i < steps.length - 1 && <span aria-hidden="true" className="absolute bottom-0 left-2.5 top-6 w-px bg-grey-light" />}
+                    {i < steps.length - 1 && <span aria-hidden="true" className="absolute bottom-0 left-2.5 top-6 w-px bg-border" />}
                     <span className="relative z-10 flex size-5 shrink-0 items-center justify-center">
                       {st.state === "active" ? <Spinner /> : (
-                        <span className={cn("flex size-4 items-center justify-center rounded-full text-[0.6rem] font-bold text-white", st.state === "done" ? "bg-navy" : "bg-destructive")}>{st.state === "done" ? "✓" : "✕"}</span>
+                        <span className={cn("flex size-4 items-center justify-center rounded-full text-[0.6rem] font-bold text-white", st.state === "done" ? "bg-navy text-white dark:text-slate-950" : "bg-destructive text-white")}>{st.state === "done" ? "✓" : "✕"}</span>
                       )}
                     </span>
                     <div className="min-w-0 flex-1">
@@ -384,13 +384,13 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
             {job && job.answer && (
               <div className="shrink-0">
                 <h3 className="font-display text-base font-bold uppercase tracking-wide">Forecast.</h3>
-                {points.length > 1 && <div className="mt-2 rounded-lg border border-grey-light bg-white p-3"><AnswerChart points={points} /></div>}
+                {points.length > 1 && <div className="mt-2 rounded-lg border border-border bg-card p-3"><AnswerChart points={points} /></div>}
                 {points.length <= 1 && table && cols.length > 0 && (
                   <table className="mt-1 w-full text-left text-sm" data-testid="harness-table">
-                    <thead><tr>{cols.map((c) => <th key={c} className="border-b border-grey-light py-1 pr-3 font-medium">{c}</th>)}</tr></thead>
+                    <thead><tr>{cols.map((c) => <th key={c} className="border-b border-border py-1 pr-3 font-medium text-foreground">{c}</th>)}</tr></thead>
                     <tbody>
                       {table.rows.map((r, i) => (
-                        <tr key={i}>{cols.map((c) => { const v = r[table.header.indexOf(c)] ?? ""; return <td key={c} className="py-1 pr-3 tabular-nums">{c === "time" ? fiTime(v) : v}</td>; })}</tr>
+                        <tr key={i}>{cols.map((c) => { const v = r[table.header.indexOf(c)] ?? ""; return <td key={c} className="py-1 pr-3 tabular-nums text-foreground">{c === "time" ? fiTime(v) : v}</td>; })}</tr>
                       ))}
                     </tbody>
                   </table>
