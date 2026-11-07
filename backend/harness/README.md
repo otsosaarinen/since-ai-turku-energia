@@ -50,13 +50,13 @@ uv run pytest -q tests/test_harness_*.py               # no network, model or ke
 ```
 
 The root `./dev.sh` starts this server together with the website. The Llama app must run on `http://localhost:9931/v1`
-(list models: `curl localhost:9931/v1/models`; only ids containing `E4B` are offered).
+(list models: `curl localhost:9931/v1/models`; every listed model is offered).
 API keys (`FINGRID_API_KEY`, `ENTSOE_API_KEY`): copy `.env.example` (repository root) to `.env`, or type them into the website's
 Settings box (the server saves them to `.env`, mode 0600).
 
 Optional environment variables:
 
-- `HARNESS_SERVER_PORT` (default 8765), `LLAMACPP_BASE_URL`, `HARNESS_MODEL_FILTER` (default `E4B`), `ALERT_POLL_S` (default 300).
+- `HARNESS_SERVER_PORT` (default 8765), `LLAMACPP_BASE_URL`, `HARNESS_MODEL_FILTER` (default empty = no restriction; e.g. `E4B,12B` limits the list), `ALERT_POLL_S` (default 300).
 - `HARNESS_AUTO_RECALC=0`: new alerts no longer start a run by themselves.
 - `HARNESS_NO_SANDBOX=1`: run model code without the macOS sandbox.
 - `HARNESS_PYTHON_NETWORK=0`: cut the network for model code (macOS sandbox only; `zones.cf()` and urllib then stop working).
@@ -88,7 +88,7 @@ Keep the model small and local, and do not run the harness where you cannot affo
 - `memory.json` (kept when a forecast row moves over 3 % between runs, last 200 entries) is written but nothing reads it.
 - The `ollama` and `openrouter` providers and the interactive prompt in `agent.py` work only from the command line.
 - The saved data files hold the thinned data (every second row for long feeds), not the full response.
-- A small model (gemma E4B) often miscalculates or invents numbers when a step fails; a larger one helps (`HARNESS_MODEL_FILTER=E4B,12B` in `.env` lists it).
+- A small model (gemma E4B) often miscalculates or invents numbers when a step fails; a larger one helps; every model the Llama app lists can be picked.
 - The imbalance prompt sets every hourly forecast to the latest spot price plus a spread, so the 24 hourly rows share one spot level.
   The published day-ahead prices for those hours are known and are deliberately not used (teammate's design, 7 Nov); worth revisiting.
 
@@ -117,3 +117,4 @@ the author is a teammate). Local changes, in order:
   (`data.fi`, `data.ee`, ...), so long answers were cut at 20,000 characters and the saved data file was invalid JSON (the model's Python
   could not load it and it then invented numbers). It now thins the longest list anywhere, keeps the last row and keeps the JSON valid.
   The imbalance prompt got a worked unit example (0.00586 EUR/kWh = 5.86 EUR/MWh) after the small model got it wrong by 10x.
+- 8 Nov 2026: the model filter no longer defaults to `E4B`: all models listed by the Llama app can be chosen in the panel and are accepted by the server (the model id is still checked for odd characters; `HARNESS_MODEL_FILTER` can restrict it again).

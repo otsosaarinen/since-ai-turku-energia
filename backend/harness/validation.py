@@ -11,8 +11,9 @@ LOCAL_NAMES = frozenset({"localhost", "127.0.0.1"})
 MODEL_RE = re.compile(
     r"^[A-Za-z0-9][\w./:\-]{0,199}$"
 )  # starts with a letter or digit so it can never look like a command-line flag
-# Only the light model is offered and accepted. HARNESS_MODEL_FILTER = comma-separated words, one must be in the id.
-DEFAULT_MODEL_FILTER = "E4B"
+# Every model the local model server lists is offered and accepted. To restrict that, set HARNESS_MODEL_FILTER to
+# comma-separated words (one must be in the model id), e.g. "E4B,12B".
+DEFAULT_MODEL_FILTER = ""
 MAX_BODY_BYTES = 20_000
 
 
@@ -59,7 +60,7 @@ def check_run_request(body: object) -> tuple[str, str]:
     if not isinstance(model, str) or not MODEL_RE.match(model):
         raise RequestError("model name is missing or has odd characters")
     if not model_allowed(model):
-        raise RequestError(f"only models matching {model_filter()} are allowed (set HARNESS_MODEL_FILTER to change)")
+        raise RequestError(f"only models matching {model_filter()} are allowed (HARNESS_MODEL_FILTER is set)")
     return preset, model
 
 

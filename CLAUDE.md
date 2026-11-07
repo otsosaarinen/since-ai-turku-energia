@@ -54,7 +54,7 @@ Run backend commands from `backend/` (`uv sync` first; macOS needs `brew install
 | Website data from outputs/ | `uv run scripts/export_web_data.py` -> `frontend/public/data/` |
 | Organiser tools | `uv run python -I starter_package_v1/{validate_submission,score,make_templates}.py` |
 
-- Current counts (8 Nov): 159 backend tests, 171 frontend tests, ruff and eslint clean. Update these when they change.
+- Current counts (8 Nov): 160 backend tests, 171 frontend tests, ruff and eslint clean. Update these when they change.
 - Do not run the training scripts just to check something; they are slow and overwrite outputs.
 
 ## Model (details in REPORT.md)
@@ -89,7 +89,7 @@ Run backend commands from `backend/` (`uv sync` first; macOS needs `brew install
 - It is a live 24 h / 7 d analyst, not a backtest. Its CSV cannot fill the website's harness JSON without a converter; not connected to the chart.
 - Forecasts so far are weak (EXPERIMENTS.md section 8). The LightGBM model stays the entry; the harness is a live demo.
 - Run: `./dev.sh` (server on 127.0.0.1:8765, reached through the `/harness-api` rewrite in `frontend/next.config.ts`). Needs the Llama app on localhost:9931 with context >= 16k.
-- Models: the panel offers only ids containing `E4B` (`HARNESS_MODEL_FILTER`). Restart `./dev.sh` after any change to harness code.
+- Models: the panel offers every model the Llama app lists (optional restriction: `HARNESS_MODEL_FILTER`, empty by default). Restart `./dev.sh` after any change to harness code.
 - Keys (`FINGRID_API_KEY`, `ENTSOE_API_KEY`) live in the root `.env`; the Settings box can save them there. Never print or commit them; the server never returns them.
 - Audited 8 Nov: `run_python` runs with a scrubbed environment (no API keys) and, on macOS, inside a sandbox. The main risk is prompt injection from fetched web data.
 - Open decision: set `HARNESS_PYTHON_NETWORK=0` (cuts network for model code; then `zones.cf()` stops working).

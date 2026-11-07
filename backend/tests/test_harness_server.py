@@ -73,7 +73,15 @@ def test_run_request_is_checked():
             validation.check_run_request(bad)
 
 
-def test_only_the_light_model_is_allowed():
+def test_every_listed_model_is_allowed_by_default(monkeypatch):
+    monkeypatch.delenv("HARNESS_MODEL_FILTER", raising=False)
+    for model in (GOOD_MODEL, "ggml-org/gemma-4-12B-it-GGUF:Q8_0", "qwen3:32b"):
+        assert validation.model_allowed(model)
+        assert validation.check_run_request({"preset": "imbalance", "model": model}) == ("imbalance", model)
+
+
+def test_a_model_filter_can_still_restrict_the_choice(monkeypatch):
+    monkeypatch.setenv("HARNESS_MODEL_FILTER", "E4B")
     assert validation.model_allowed(GOOD_MODEL)
     assert not validation.model_allowed("ggml-org/gemma-4-12B-it-GGUF:Q8_0")
     with pytest.raises(RequestError):
@@ -198,7 +206,7 @@ def test_request_limits_and_bad_input_give_short_errors(api):
     assert api("POST", "/api/run", raw=b"not json")[0] == 400
     assert api("POST", "/api/run", headers={"Content-Type": "text/plain"}, raw=b"{}")[0] == 415
     status, body = api(
-        "POST", "/api/run", {"preset": "imbalance", "prompt": "free text", "model": GOOD_MODEL.replace("E4B", "12B")}
+        "POST", "/api/run", {"preset": "imbalance", "prompt": "free text", "model": "not a valid model id"}
     )
     assert status == 400 and set(body) == {"error"}
     assert api("GET", "/api/job?since=abc")[0] == 400
