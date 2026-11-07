@@ -19,6 +19,8 @@ test("App renders forecast page from data without crashing", async () => {
   const when = () => screen.getByTestId("when").textContent;
   const slider = screen.getByLabelText("whole period");
   fireEvent.change(slider, { target: { value: slider.max } });
+  // the controls must keep the same DOM node while the bar is dragged (no remount on every render)
+  expect(screen.getByLabelText("whole period")).toBe(slider);
   expect(when()).toMatch(/^01\/11\/2026 23:00$/);
   fireEvent.change(screen.getByLabelText("date"), { target: { value: "2026-10-20" } });
   expect(when()).toMatch(/^20\/10\/2026 00:00$/);

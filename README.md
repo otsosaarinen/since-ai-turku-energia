@@ -43,15 +43,24 @@ All settings (periods, seed, number of seeds, LightGBM parameters) are in `confi
 
 ## Look at the forecasts
 ```bash
-./scripts/start_web.sh                   # one command: refreshes the viewer data, then starts it at http://localhost:5173
-# (manual equivalent: uv run scripts/export_web_data.py && cd web && npm install && npm run dev)
+./scripts/start_web.sh                   # starts the viewer at http://localhost:5173 (Ctrl+C stops it)
 cd web && npx vitest run                 # viewer test
 uv run scripts/show_origin.py 2026-09-20T09:00   # one validation origin in the terminal (UTC)
 ```
+The viewer (`web/`, React + Recharts, styled with the Turku Energia design system in `web/src/design-system/`) is one screen without scrolling:
+the price chart (p50, p10-p90 band, real price, the forecast made 3 h earlier, a "now" line) takes most of the space, with time controls above it
+(1 h / 1 day steps, date list, a bar over the whole period) and the key numbers, a short summary and the top three drivers on the left.
+It uses Finnish time and dd/mm/yyyy, and switches between the validation month (with real prices) and the test forecast (without).
+
+`start_web.sh` rebuilds the viewer data from `outputs/` when that exists (model owner's machine); otherwise it uses ready-made
+`web/public/data/validation.json` and `final.json`. **On another laptop (e.g. a teammate's):** `git clone`, put those two files (from the
+model owner; they are not in git) into `web/public/data/`, and run `./scripts/start_web.sh`. Only Node.js is needed; no Python, data or model.
+
 `app/app.py` is an older, optional Streamlit viewer (`uv run --group app streamlit run app/app.py`).
 
 ## Layout
 - `src/availability.py` availability filter (fast index, same result as the organiser's `rows_available_at`)
 - `src/features.py` features per (origin, step) | `src/train.py`, `src/predict.py` models | `src/evaluate.py` validator and scorer wrappers
+- `web/` React viewer styled with the Turku Energia design system (`web/src/design-system/`)
 - `src/exports.py` `backtest_vs_actual` table | `src/baseline.py` organiser baseline | `tests/` | `configs/` | `scripts/` | `web/` viewer
 - `scripts/train_cpu.sbatch` LUMI Slurm job for the final run (untested; LUMI is optional, local training takes about a minute)

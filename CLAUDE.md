@@ -30,8 +30,16 @@ Config (periods, seeds, LightGBM settings) = configs/default.yaml.
 - `uv run scripts/run_rolling.py [--tag X] [--ref TAG] [--set key=value ...]` -> 8 weekly windows; judge model changes here.
 - `uv run scripts/run_final.py` -> outputs/final/forecast_backtest.csv and runs the organiser validator.
 - Organiser tools: `uv run python -I starter_package_v1/{validate_submission,score,make_templates}.py`.
-- Viewer: `./scripts/start_web.sh` (http://localhost:5173). Streamlit `app/` is optional/older.
+- Viewer: `./scripts/start_web.sh` (http://localhost:5173). It rebuilds `web/public/data/*.json` from outputs/ if present, otherwise uses
+  existing JSON (gitignored: teammates must be given validation.json and final.json; they contain forecasts and real imbalance prices,
+  no spot values). Streamlit `app/` is optional/older.
 - LightGBM on macOS needed `brew install libomp` (done).
+
+## Web viewer (web/)
+One-screen layout (no scrolling on large screens): wave background, chart as the focus, controls above it, numbers/summary/drivers on the left.
+Built from our own Vite + React code plus the Turku Energia design system copied from a Lovable template into `web/src/design-system/`
+(only that part of the template was used; licence note in SOURCES.md). Do not define components inside `App` (it remounts the controls;
+a test guards this). Finnish time, dd/mm/yyyy. Not visually checked by Claude (no headless browser here): ask the user for screenshots.
 
 ## Status (7 Nov 2026)
 - Submission `outputs/final/forecast_backtest.csv` exists and passes the validator. Model: six LightGBM models predicting
