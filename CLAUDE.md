@@ -86,13 +86,17 @@ checks keep other websites out (tests in tests/test_harness_server.py). Not avai
   asked: `lumi-workspaces` for the project ID, then give rsync commands excluding .git/.venv/outputs.
 - Slides (5-8), demo video (max 5 min) and the platform upload are for the user; I can draft slide/demo content from REPORT.md.
 
-## Status (7 Nov 2026)
+## Status (7 Nov 2026, evening)
 - Submission `outputs/final/forecast_backtest.csv` exists, passes the organiser validator, and was reproduced byte-identical on a fresh clone
-  (sha256 starts 4f396b56dd9bae1d). It is not in git (upload it from the laptop).
-- Git: all work is committed (run `git log --oneline -3` and `git status -sb` for the exact state). Pushing to GitHub is the user's step: he pushes himself or
-  says so; check `git status -sb` for "ahead". The input switches, the redesigned one-screen viewer with smooth time/Play and the fixed price axis, and the
-  doc rewrite are part of the commit made on 7 Nov 2026.
+  (sha256 starts 4f396b56dd9bae1d). It is not in git (upload it from the laptop). Final model: LightGBM, validation MAE 43.21 vs baseline 66.20.
+- Git: all work is committed and pushed up to the harness step list (run `git log --oneline -3` and `git status -sb`; the user pushes himself, check for "ahead").
 - Variant JSON files exist locally (web/public/data/, about 74 MB, git-ignored).
+- Website hosted on Vercel for a demo: project `imbalance-forecast-demo`, https://imbalance-forecast-demo.vercel.app (public link, deployed with
+  `cd web && npm run build && npx vercel deploy dist --prod`; it may show an older version). MUST be deleted after the event (`npx vercel remove imbalance-forecast-demo`,
+  Nord Pool licence). Its Harness page only explains how to start the local server.
+- Harness: author is the user's teammate (licence concern settled). The panel works end to end (E4B, about 1 min); forecasts so far were weak or wrong (see EXPERIMENTS.md
+  section 8); the current-time fix and fixed prompts were not re-run after the last change. Needs: Llama app running, `./scripts/start_harness.sh` restarted after any change to harness/server.py.
+- Still to do by the user before Sun 8 Nov 10:00: upload the CSV + REPORT.md + SOURCES.md + repo link, slides (5-8), demo video (max 5 min). Delete data after the event.
 
 ## Next ideas (none started)
 Slides and demo script (the jury part is 20 points); learning-curve check; direction-aware price model; more direction features; spike probabilities from extra quantiles. Already tested, no gain: fixed p_none and spike base-rate shift (EXPERIMENTS.md section 7).
