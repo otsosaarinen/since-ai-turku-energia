@@ -9,7 +9,7 @@ vi.mock("recharts", async (orig) => {
   return { ...m, ResponsiveContainer: ({ children }: { children: React.ReactElement }) => React.cloneElement(children, { width: 600, height: 200 }) };
 });
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); window.history.replaceState(null, "", "/"); });
 
 const answer = 'Short explanation.\n\n```csv\nhorizon,time,area,metric,value,unit,low,high,confidence,drivers\n24h,2026-11-07T13:00:00+00:00,FI,imbalance_price,42.5,EUR/MWh,10,90,Low,"nordpool_price, fingrid"\n24h,1794002400,FI,imbalance_price,50,EUR/MWh,20,80,Low,x\n```\n';
 
@@ -40,6 +40,7 @@ test("the panel asks for missing API keys and saves one", async () => {
   }) as unknown as typeof fetch;
 
   render(<HarnessPanel pollMs={10} />);
+  fireEvent.click(await screen.findByText(/Settings/));
   await waitFor(() => expect(screen.getByTestId("harness-keys")).toBeTruthy());
   const field = screen.getByLabelText("key value") as HTMLInputElement;
   expect(field.type).toBe("password");                                            // the key is not shown as it is typed
@@ -68,17 +69,17 @@ test("start a run, watch the progress, see the answer table", async () => {
   }) as unknown as typeof fetch;
 
   render(<HarnessPanel pollMs={10} />);
+  fireEvent.click(await screen.findByText("Settings"));                           // the model picker lives in the Settings pop-up
   const select = (await screen.findByLabelText("harness model")) as HTMLSelectElement;
   await waitFor(() => expect(select.value).toMatch(/E4B/));                       // the small fast model is the default
+  fireEvent.click(screen.getByRole("button", { name: "Close" }));
   expect(screen.queryByLabelText("harness prompt")).toBeNull();                   // the prompt cannot be edited
   fireEvent.click(screen.getByRole("button", { name: "Day-ahead price, next 12 h" }));
-  expect(screen.getByTestId("harness-about").textContent).toMatch(/About day-ahead/);
   fireEvent.click(screen.getByRole("button", { name: "Start run" }));
   await waitFor(() => expect(screen.getByTestId("harness-log").textContent).toMatch(/Fetching nordpool_price/));
-  await waitFor(() => expect(screen.getByTestId("harness-table")).toBeTruthy());
+  await waitFor(() => expect(screen.getByTestId("harness-chart")).toBeTruthy());   // a forecast with several points is drawn as a chart (the table is for answers without a chart)
   expect(screen.getByTestId("harness-log").textContent).toMatch(/Step 1: Fetching nordpool_price.*Step 2: Writing the answer/);   // steps in order
   expect(screen.getByTestId("harness-state").textContent).toMatch(/Done in 9 s/);
-  expect(screen.getByTestId("harness-table").textContent).toMatch(/07\/11\/2026 15:00/);          // shown in Finnish time
   expect(screen.getByTestId("harness-chart").querySelectorAll(".recharts-line").length).toBeGreaterThan(0);   // and drawn as a chart
   const run = calls.find((c) => c.url.endsWith("/run"))!;
   expect(JSON.parse(run.body!).model).toMatch(/E4B/);

@@ -47,7 +47,7 @@ npm run dev
 Next time you only need `cd web` and `npm run dev`. On macOS and Linux, `./scripts/start_web.sh` from the repo folder does the same
 (and on the model owner's computer it also rebuilds the website's data from `outputs/` first). It does not work on Windows.
 
-Other website commands (run inside the `web/` folder): `npm test` (18 tests), `npm run typecheck` (TypeScript check), `npm run build` (production build).
+Other website commands (run inside the `web/` folder): `npm test` (19 tests), `npm run typecheck` (TypeScript check), `npm run build` (production build).
 What the page shows is described under "What the website shows" further down.
 
 ## Part B: train the model yourself
@@ -113,24 +113,24 @@ All settings (periods, seed, number of seeds, LightGBM parameters) are in `confi
 ```bash
 uv run scripts/show_origin.py 2026-09-20T09:00   # (optional) one validation origin in the terminal instead of the website (UTC)
 ```
-The website (`web/`, React + TypeScript + Vite + Recharts) is one screen without scrolling on a laptop screen; on a phone or narrow window it becomes one scrolling column: method boxes and chart first, the time controls under the chart, the summary below, and the input switches behind a "Forecast inputs" button. It follows the Turku Energia graphic guidelines (white page, orange
+The website (`web/`, React + TypeScript + Vite + Recharts) is one screen without scrolling on a laptop screen; on a phone or narrow window it becomes one scrolling column: method boxes and chart first, the time controls under the chart, the summary below, and the period buttons and input switches in a column above the chart (the switches behind a "Forecast inputs" button). It follows the Turku Energia graphic guidelines (white page, orange
 as the accent colour, blue and grey structure with WCAG AA contrast, bold condensed capital headlines, plain wording), uses Finnish time and
-dd/mm/yyyy, and has only two "i" tooltips (period buttons, key numbers; the chart legend explains the lines). What is on the screen, top to bottom:
-- **Period buttons:** the validation month (with real prices) or the test forecast (without). Shown only for the "Machine-learning model" box; hidden on the Harness prediction page.
+dd/mm/yyyy, and keeps its text short (no "i" tooltips; the chart legend explains the lines). The team name ("Perjantain kevätrulla") is under the title. The address shows the chosen tab: `/?method=harness` for the Harness prediction, plain `/` for the Machine-learning model (the default). What is on the screen, top to bottom:
+- **Period buttons:** the validation month (with real prices) or the test forecast (without), two equal-width buttons at the top of the left column, above the input switches. Shown only for the "Machine-learning model" box; hidden on the Harness prediction page.
 - **Two method boxes:** **Machine-learning model** (this repo's LightGBM forecasts) and **Harness prediction** (a second method whose code is in `harness/`, see
   "Harness prediction" below; its forecasts are not connected to the chart yet). The highlighted box decides what the chart shows. To connect it, add forecasts as
   `web/public/data/harness_validation.json` and `harness_final.json` in the same format as `validation.json` / `final.json` (`{name, hasActuals, cols, rows}`, see
   `src/exports.py` `web_payload`); until then its box shows a "not connected yet" message. The harness makes live forecasts, not a backtest, so a converter and a decision on
   what to show are still needed.
-- **Summary strip:** one plain sentence (does the grid need more or less power), the main drivers and three numbers (chance of a high and of a low price spike
-  and, when real prices are known, the average error). The method boxes keep one short line each. Kept short on purpose: the page was found cluttered, so everything else was cut. All cards are plain white.
-- **Chart (in the middle, as big as possible):** forecast, likely range (blue), real price (red), the forecast made 3 h earlier (grey) and a
+- **Summary strip:** one plain sentence (does the grid need more or less power) and three numbers (chance of a high and of a low price spike
+  and, when real prices are known, the average error). The method boxes show only their titles; a one-line note under them says what the machine-learning forecast is. Kept short on purpose: the page was found cluttered, so everything else was cut. All cards are plain white.
+- **Chart (in the middle, as big as possible):** forecast, likely range (blue), real price (red: solid = already published when the forecast was made, dashed = published after it; the legend and hover text say which), the forecast made 3 h earlier (grey) and a
   "Forecast made" line. The price axis is fixed (-50 to 350 EUR/MWh, from the data: the forecast line's 99.9th percentile and the likely range's 99th) so its numbers never move while time moves or plays;
   rare larger values run off the top and show in the hover tooltip. Above it: 1 h / 1 day steps that glide smoothly, a date list, a bar over the whole period, a **Play** button (speeds 1x, 3x,
   10x forecast hours per second; stops at the end). The **input switches** are stacked in a column to the left of the chart.
 - **Input switches (Machine-learning model only):** turn Fingrid's day-ahead **solar**, **wind** and **consumption** forecasts on or off. The page cannot
   re-run the model, so each of the 8 combinations is a separately trained model computed beforehand with `uv run scripts/run_variants.py`
-  (7 extra variants, about 12 minutes, files in `web/public/data/variants/`). A label shows the validation error of the chosen variant.
+  (7 extra variants, about 12 minutes, files in `web/public/data/variants/`). A label shows the average error of the chosen variant.
   Residual-load features combine all three forecasts, so they are removed whenever any switch is off. Real cloud or sunlight data is not in the model.
 
 **Where the website's data comes from.** `web/public/data/` (git-ignored: forecasts and real imbalance prices, no spot prices) is created by
@@ -164,14 +164,14 @@ HARNESS_PROVIDER=llamacpp LLAMACPP_BASE_URL=http://localhost:9931/v1 \
 ./scripts/start_harness.sh     # control server on 127.0.0.1:8765; needs the local model server (Llama app, port 9931)
 ./scripts/start_web.sh         # the website; pick "Harness prediction", choose a model, press Start run
 ```
-The panel offers only the small gemma-4 E4B model (the server filters the Llama app's model list; `HARNESS_MODEL_FILTER=E4B,12B ./scripts/start_harness.sh` offers more), has two fixed forecast choices (imbalance price next 12 h; day-ahead price next 12 h) with a one-line description each; the prompt text cannot be edited on the page and lives in `harness/server.py` (`PRESETS`), which accepts only a preset name,
-shows the run live as a short list of steps (one per call to the model, named by what it did, e.g. "Step 2: Fetching nordpool_price"; finished steps are grey, the current one has a spinner, the list scrolls inside its own box, a failed fetch shows its error under the step, and the model's reasoning for that step is shown in grey italics when the model returns it, shown in full, from the `[think]` progress line) and, when finished, the answer (the table is found even if the model forgets the code fence) as a chart (orange forecast line, blue low-to-high range) and a table in Finnish time. `[turn k/10]` counts calls to the model; 10 is only the maximum, a run ends when the model decides to answer. The server tells the model the current UTC time and to use ISO timestamps (small models otherwise send words like "5 hours ago" to the data sources). It works only on your own computer with the Vite dev server
+The panel has a short intro and two fixed forecast choices (imbalance price next 12 h; day-ahead price next 12 h) with a one-line description under the buttons. A **Settings** button opens a pop-up with the model picker (only the small gemma-4 E4B model; the server filters the Llama app's model list; `HARNESS_MODEL_FILTER=E4B,12B ./scripts/start_harness.sh` offers more) and the API keys. The elapsed time / "Done in …" sits next to the "Progress." heading; the prompt text cannot be edited on the page and lives in `harness/server.py` (`PRESETS`), which accepts only a preset name,
+shows the run live as a short list of steps (one per call to the model, named by what it did, e.g. "Step 2: Fetching nordpool_price"; small compact text, finished steps have a check mark, the current one a spinner, the list scrolls inside its own box, a failed fetch shows its error under the step, and the model's reasoning is behind a "Reasoning" fold-out under the step, shown in full, from the `[think]` progress line) and, when finished, the answer (the table is found even if the model forgets the code fence) as a chart (orange forecast line, blue low-to-high range) in Finnish time; the table is shown instead when the answer has too few points for a chart. `[turn k/10]` counts calls to the model; 10 is only the maximum, a run ends when the model decides to answer. The server tells the model the current UTC time and to use ISO timestamps (small models otherwise send words like "5 hours ago" to the data sources). It works only on your own computer with the Vite dev server
 (the proxy `/harness-api` in `web/vite.config.ts`); on a hosted copy (Vercel) it only explains how to start the server. One run at a time, stopped after 20 minutes, **Stop** ends it.
 The server (`harness/server.py`, written for this repo) listens on 127.0.0.1 only and refuses any request whose Host or Origin is not localhost, because a run executes model-written Python.
 On the command line the same progress lines appear with `--progress` (added to `harness/harness.py`).
 Fetched data is saved to `harness/reports/data/` (git-ignored); the model sees a short preview and the file path and is told to load the file in its Python code instead of pasting data into it (long pasted JSON made the small model write broken code). Tool calls that arrive cut off get their own retry budget of 4 and do not count towards the 10 turns.
 
-**API keys:** the panel shows an input field for each missing key (Fingrid, ENTSO-E; OpenRouter only for the hosted provider) and saves it to `harness/key.txt` (git-ignored, 0600) without showing it again. On the command line the harness asks for missing keys on startup (Enter skips) and saves them there. Without the Fingrid key the `fingrid_*` sources fail. Example question that uses it (run from the repo folder):
+**API keys:** the Settings pop-up shows an input field for each missing key (Fingrid, ENTSO-E; OpenRouter only for the hosted provider) and saves it to `harness/key.txt` (git-ignored, 0600) without showing it again. On the command line the harness asks for missing keys on startup (Enter skips) and saves them there. Without the Fingrid key the `fingrid_*` sources fail. Example question that uses it (run from the repo folder):
 ```bash
 HARNESS_PROVIDER=llamacpp LLAMACPP_BASE_URL=http://localhost:9931/v1 \
   uv run --group harness python harness/harness.py -m "ggml-org/gemma-4-E4B-it-GGUF:Q8_0" -q "predict the Finnish imbalance price every 2 hours for the next 12 hours"

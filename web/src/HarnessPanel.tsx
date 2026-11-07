@@ -156,6 +156,7 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
   const [keys, setKeys] = useState<Keys>({ set: [], missing: [] });
   const [keyName, setKeyName] = useState("");
   const [keyValue, setKeyValue] = useState("");
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const nextRef = useRef(0);
   const logRef = useRef<HTMLOListElement>(null);
   const running = job?.status === "running";
@@ -215,6 +216,7 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
   const steps = parseSteps(lines, job ? job.status : null);
   const text = job && job.answer ? splitAnswer(job.answer).text : "";
 
+  const models = info !== null && typeof info === "object" ? info.models : [];
   return (
     <Card className="flex flex-1 flex-col gap-3 bg-white p-4 lg:min-h-0 lg:overflow-hidden">
       <h2 className="font-display text-2xl font-bold uppercase tracking-wide">Harness prediction.</h2>
@@ -234,14 +236,7 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
       {info && info !== "offline" && info !== "outdated" && (
         <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[22rem_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]">
           <div className="flex min-h-0 flex-col gap-3">
-            <p className="text-sm text-muted-foreground">A live forecast made by an AI model that fetches open data and runs Python. It is not part of the scored submission.</p>
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="font-medium">Model</span>
-              <select aria-label="harness model" className="h-9 rounded-md border border-input bg-white px-3 text-sm" value={model} disabled={running} onChange={(e) => setModel(e.target.value)}>
-                {info.models.length === 0 && <option value="">No model found: start the Llama app</option>}
-                {info.models.map((m) => <option key={m} value={m}>{m}</option>)}
-              </select>
-            </label>
+            <p className="text-sm text-muted-foreground">An AI model fetches live data and makes a short forecast. A live demo, not the scored entry.</p>
             <div className="flex flex-col gap-1 text-sm">
               <span className="font-medium">What to forecast</span>
               <div className="flex flex-wrap gap-2">
@@ -249,43 +244,43 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
                   <Button key={p.id} size="sm" variant={preset === p.id ? "primary" : "outline"} className={preset === p.id ? solidBtn : outlineBtn} aria-pressed={preset === p.id} disabled={running} onClick={() => setPreset(p.id)}>{p.label}</Button>
                 ))}
               </div>
-              <p className="mt-1 text-muted-foreground" data-testid="harness-about">{info.presets.find((p) => p.id === preset)?.about}</p>
+              <p className="text-xs text-muted-foreground" data-testid="harness-about">{info.presets.find((p) => p.id === preset)?.about}</p>
             </div>
-            {keys.missing.length > 0 && (
-              <div className="flex flex-col gap-1 text-sm" data-testid="harness-keys">
-                <span className="font-medium">API keys</span>
-                <p className="text-muted-foreground">Some data sources need a key. It is saved to key.txt on this computer and not shown again.</p>
-                <div className="flex gap-2">
-                  <select aria-label="key name" className="h-9 rounded-md border border-input bg-white px-2 text-sm" value={keyName} onChange={(e) => setKeyName(e.target.value)}>
-                    {keys.missing.map((n) => <option key={n} value={n}>{n}</option>)}
-                  </select>
-                  <input aria-label="key value" type="password" autoComplete="off" className="h-9 min-w-0 flex-1 rounded-md border border-input bg-white px-2 text-sm" value={keyValue} onChange={(e) => setKeyValue(e.target.value)} />
-                  <Button size="sm" variant="outline" className={outlineBtn} disabled={!keyValue.trim()} onClick={saveKey}>Save</Button>
-                </div>
-              </div>
-            )}
-            <div className="flex items-center gap-3">
-              <Button size="sm" variant="primary" className={cn(solidBtn, "w-28")} disabled={running || !model || !preset} onClick={start}>Start run</Button>
-              <Button size="sm" variant="outline" className={cn(outlineBtn, "w-20")} disabled={!running} onClick={stop}>Stop</Button>
-              <span className="text-sm text-muted-foreground" data-testid="harness-state">{stateText(job)}</span>
+            <div className="grid grid-cols-3 gap-2">
+              <Button size="sm" variant="primary" className={cn(solidBtn, "w-full")} disabled={running || !model || !preset} onClick={start}>Start run</Button>
+              <Button size="sm" variant="outline" className={cn(outlineBtn, "w-full")} disabled={!running} onClick={stop}>Stop</Button>
+              <Button size="sm" variant="outline" className={cn(outlineBtn, "w-full")} aria-haspopup="dialog" onClick={() => setSettingsOpen(true)}>Settings</Button>
             </div>
             {err && <p className="text-sm text-destructive" role="alert">{err}</p>}
           </div>
           <div className="flex min-h-0 flex-col gap-3">
-            <div className={cn("flex min-h-0 flex-col", job && job.answer ? "lg:max-h-[45%]" : "lg:flex-1")}>
-              <h3 className="font-display text-base font-bold uppercase tracking-wide">Progress.</h3>
-              <ol ref={logRef} data-testid="harness-log" className="mt-1 max-h-96 min-h-0 space-y-1 overflow-auto rounded-md bg-bg-light p-3 text-sm lg:max-h-none lg:flex-1">
+            <div className={cn("flex min-h-0 flex-col", job && job.answer ? "lg:max-h-[30%]" : "lg:flex-1")}>
+              <div className="flex items-baseline justify-between gap-2">
+                <h3 className="font-display text-base font-bold uppercase tracking-wide">Progress.</h3>
+                <span className="text-sm text-muted-foreground" data-testid="harness-state">{stateText(job)}</span>
+              </div>
+              <ol ref={logRef} data-testid="harness-log" className="mt-2 max-h-64 min-h-0 overflow-auto rounded-lg border border-grey-light bg-white p-3 text-xs lg:max-h-none lg:flex-1">
                 {steps.length === 0 && (
-                  <li className="flex items-center gap-2 text-muted-foreground">{running ? <><Spinner /> Starting the model …</> : "Nothing yet. A run takes a few minutes."}</li>
+                  <li className="flex items-center gap-2 text-muted-foreground">{running ? <><Spinner /> Starting the model …</> : "Nothing yet."}</li>
                 )}
                 {steps.map((st, i) => (
-                  <li key={i} data-state={st.state} className={cn("flex flex-col", st.state === "done" ? "text-muted-foreground" : st.state === "failed" ? "text-destructive" : "font-medium text-foreground")}>
-                    <span className="flex items-center gap-2">
-                      {st.state === "active" ? <Spinner /> : <span className="w-4 shrink-0 text-center no-underline">{st.state === "done" ? "✓" : "✕"}</span>}
-                      <span>Step {st.n}: {st.title}{st.state === "active" ? " …" : ""}</span>
+                  <li key={i} data-state={st.state} className="relative flex gap-2 pb-2.5 last:pb-0">
+                    {i < steps.length - 1 && <span aria-hidden="true" className="absolute bottom-0 left-2.5 top-6 w-px bg-grey-light" />}
+                    <span className="relative z-10 flex size-5 shrink-0 items-center justify-center">
+                      {st.state === "active" ? <Spinner /> : (
+                        <span className={cn("flex size-4 items-center justify-center rounded-full text-[0.6rem] font-bold text-white", st.state === "done" ? "bg-navy" : "bg-destructive")}>{st.state === "done" ? "✓" : "✕"}</span>
+                      )}
                     </span>
-                    {st.detail && <span className="ml-6 text-xs font-normal">{st.detail}</span>}
-                    {st.think && <span data-testid="harness-think" className="ml-6 mt-0.5 whitespace-pre-wrap border-l-2 border-grey-light pl-2 text-xs font-normal italic text-muted-foreground">Reasoning: {st.think}</span>}
+                    <div className="min-w-0 flex-1">
+                      <p className={cn("leading-4", st.state === "failed" ? "text-destructive" : "text-foreground", st.state === "active" && "font-medium")}>Step {st.n}: {st.title}{st.state === "active" ? " …" : ""}</p>
+                      {st.detail && <p className="text-[0.7rem] text-muted-foreground">{st.detail}</p>}
+                      {st.think && (
+                        <details className="mt-1">
+                          <summary className="cursor-pointer text-xs font-medium text-navy">Reasoning</summary>
+                          <p data-testid="harness-think" className="mt-1 whitespace-pre-wrap rounded-md bg-bg-light p-2 text-[0.7rem] text-muted-foreground">{st.think}</p>
+                        </details>
+                      )}
+                    </div>
                   </li>
                 ))}
                 {(job?.status === "error") && lines.length > 0 && <li className="pt-1 text-xs text-destructive">{lines.filter((l) => !/^\[(turn|tool|result|start|done)/.test(l)).slice(-2).join(" ")}</li>}
@@ -293,9 +288,9 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
             </div>
             {job && job.answer && (
               <div className="min-h-0 lg:flex-1 lg:overflow-auto">
-                <h3 className="font-display text-base font-bold uppercase tracking-wide">Answer.</h3>
-                {points.length > 1 && <AnswerChart points={points} />}
-                {table && cols.length > 0 && (
+                <h3 className="font-display text-base font-bold uppercase tracking-wide">Forecast.</h3>
+                {points.length > 1 && <div className="mt-2 rounded-lg border border-grey-light bg-white p-3"><AnswerChart points={points} /></div>}
+                {points.length <= 1 && table && cols.length > 0 && (
                   <table className="mt-1 w-full text-left text-sm" data-testid="harness-table">
                     <thead><tr>{cols.map((c) => <th key={c} className="border-b border-grey-light py-1 pr-3 font-medium">{c}</th>)}</tr></thead>
                     <tbody>
@@ -308,6 +303,44 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
                 <div className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{text}</div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+      {settingsOpen && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-navy/40 p-4" onClick={() => setSettingsOpen(false)}>
+          <div role="dialog" aria-label="Settings" data-testid="harness-keys" className="flex w-full max-w-sm flex-col gap-4 rounded-lg border border-border bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-display text-2xl font-bold uppercase tracking-wide">Settings.</h3>
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="font-medium">Model</span>
+              <select aria-label="harness model" className="h-9 w-full rounded-md border border-input bg-white px-3 text-sm" value={model} disabled={running} onChange={(e) => setModel(e.target.value)}>
+                {models.length === 0 && <option value="">No model found: start the Llama app</option>}
+                {models.map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </label>
+            <b className="text-sm font-medium">API keys</b>
+            {keys.set.length > 0 && (
+              <ul className="flex flex-col gap-1 text-sm">
+                {keys.set.map((n) => <li key={n} className="flex items-center justify-between rounded-md bg-bg-light px-3 py-2"><span>{n}</span><span className="text-muted-foreground">✓ set</span></li>)}
+              </ul>
+            )}
+            {keys.missing.length > 0 ? (
+              <div className="flex flex-col gap-3 text-sm">
+                <label className="flex flex-col gap-1">
+                  <span className="font-medium">Key</span>
+                  <select aria-label="key name" className="h-9 w-full rounded-md border border-input bg-white px-3 text-sm" value={keyName} onChange={(e) => setKeyName(e.target.value)}>
+                    {keys.missing.map((n) => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="font-medium">Value</span>
+                  <input aria-label="key value" type="password" autoComplete="off" className="h-9 w-full rounded-md border border-input bg-white px-3 text-sm" value={keyValue} onChange={(e) => setKeyValue(e.target.value)} />
+                </label>
+              </div>
+            ) : <p className="text-sm">All keys are set.</p>}
+            <div className="grid grid-cols-2 gap-2">
+              <Button size="sm" variant="outline" className={cn(outlineBtn, "w-full")} onClick={() => setSettingsOpen(false)}>Close</Button>
+              <Button size="sm" variant="primary" className={cn(solidBtn, "w-full")} disabled={!keyValue.trim() || keys.missing.length === 0} onClick={saveKey}>Save</Button>
+            </div>
           </div>
         </div>
       )}

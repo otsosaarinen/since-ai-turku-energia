@@ -12,9 +12,9 @@ import { Area, CartesianGrid, ComposedChart, Legend, Line, ReferenceLine, Respon
 
 // The two ways of predicting. "harness" has no forecasts yet: when its two files (same format as validation.json / final.json)
 // appear in web/public/data/, the box switches the chart to them automatically.
-const METHODS: Record<MethodKey, { title: string; sub: string; files: Record<SetKey, string> }> = {
-  current: { title: "Machine-learning model", sub: "Gradient-boosted trees (LightGBM): quantiles, direction and spikes.", files: { validation: "validation", final: "final" } },
-  harness: { title: "Harness prediction", sub: "Second forecasting method (harness). Runs on your computer.", files: { validation: "harness_validation", final: "harness_final" } },
+const METHODS: Record<MethodKey, { title: string; files: Record<SetKey, string> }> = {
+  current: { title: "Machine-learning model", files: { validation: "validation", final: "final" } },
+  harness: { title: "Harness prediction", files: { validation: "harness_validation", final: "harness_final" } },
 };
 // Input toggles of the current model. Each combination is a separately trained model variant computed by scripts/run_variants.py;
 // the key has one digit per toggle (1 = on, 0 = off), "111" is the normal model served by validation.json / final.json.
@@ -26,16 +26,6 @@ const TOGGLES: { id: ToggleId; label: string }[] = [
 const SETS: Record<SetKey, { label: string }> = {
   validation: { label: "Validation 7 Sep – 4 Oct" },
   final: { label: "Test forecast 5 Oct – 1 Nov" },
-};
-const HELP: Record<string, string> = {
-  spot_price: "the day-ahead price of electricity", consumption_forecast_da: "the forecast of electricity consumption",
-  wind_forecast_da: "the wind power forecast", solar_forecast_da: "the solar power forecast",
-  residual_load_forecast: "the electricity demand left after wind and solar", latest_imbalance_price: "the latest imbalance prices",
-  imbalance_minus_spot_history: "how far recent imbalance prices were from the day-ahead price", mfrr_direction_history: "whether the grid recently needed more or less power",
-  mfrr_prices_and_activation: "prices and use of the manual balancing reserve", afrr_activity: "use of the automatic balancing reserve", cross_border_flows: "electricity flows to and from neighbouring countries",
-  neighbour_imbalance_prices: "imbalance prices in Sweden and Estonia", same_time_previous_days_imbalance: "the imbalance price at the same time on previous days",
-  consumption_actual: "measured electricity consumption", production_actual: "measured electricity production", neighbour_load_forecasts: "consumption forecasts of neighbouring countries",
-  fi_ee_capacity: "the transmission capacity between Finland and Estonia", calendar: "the time of day and the weekday", forecast_horizon: "how far ahead the hour is",
 };
 // Data is stored in UTC; everything shown on the page is Finnish time (Europe/Helsinki, incl. the 25 Oct clock change).
 const FI = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Helsinki", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
@@ -80,11 +70,11 @@ function ChartTip({ active, payload }: { active?: boolean; payload?: { payload: 
     <div className="rounded-md border border-border bg-white p-3 text-sm shadow-lg">
       <p className={cn(h2, "text-base")}>{mdOf(r.ms)} {hhmm(r.ms)}</p>
       {r.p50 != null && <>
-        <p>Forecast (most likely price): <b>{eur(r.p50)}</b></p>
+        <p>Forecast: <b>{eur(r.p50)}</b></p>
         <p>Likely range: {eur(r.p10)} to {eur(r.p90)}</p>
       </>}
-      {real != null && <p>Real price: <b>{eur(real)}</b></p>}
-      {r.prevP50 != null && <p className="text-muted-foreground">Forecast made 3 h earlier: {eur(r.prevP50)}</p>}
+      {real != null && <p>{r.realKnown != null ? "Real price (known at forecast time)" : "Real price (after the forecast)"}: <b>{eur(real)}</b></p>}
+      {r.prevP50 != null && <p className="text-muted-foreground">3 h earlier: {eur(r.prevP50)}</p>}
     </div>
   );
 }
@@ -124,7 +114,13 @@ function index(d: Payload) {
 
 export default function App() {
   const [set, setSet] = useState<SetKey>("validation");
-  const [method, setMethod] = useState<MethodKey>("current");
+  // the chosen tab lives in the address (?method=harness); the machine-learning model is the default and leaves the address plain
+  const [method, setMethod] = useState<MethodKey>(() => (new URLSearchParams(window.location.search).get("method") === "harness" ? "harness" : "current"));
+  useEffect(() => {
+    const u = new URL(window.location.href);
+    if (method === "harness") u.searchParams.set("method", "harness"); else u.searchParams.delete("method");
+    window.history.replaceState(null, "", u);
+  }, [method]);
   const [on, setOn] = useState<Record<ToggleId, boolean>>({ solar: true, wind: true, consumption: true });
   const key = TOGGLES.map((t) => (on[t.id] ? "1" : "0")).join("");
   const variant = method === "current" && key !== "111";
@@ -224,16 +220,8 @@ export default function App() {
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="font-display text-3xl font-bold uppercase leading-none sm:text-4xl tracking-wide">Imbalance price forecast<span className="text-brand">.</span></h1>
-          <p className="mt-1 text-sm text-muted-foreground">Since AI Hackathon 2026, Turku Energia challenge. The next 10 hours.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Team Perjantain kevätrulla</p>
         </div>
-        {method === "current" && <div className="grid grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap">
-          <span className="col-span-2 text-sm text-muted-foreground sm:col-span-1">Period
-            <Info align="right" text="Validation: a practice month with known real prices. Test forecast: the month that will be scored; its prices are unknown." />
-          </span>
-          {(Object.entries(SETS) as [SetKey, { label: string }][]).map(([k, v]) => (
-            <Button key={k} size="sm" variant={set === k ? "primary" : "outline"} className={set === k ? solidBtn : outlineBtn} onClick={() => setSet(k)}>{v.label}</Button>
-          ))}
-        </div>}
       </header>
       {/* the two ways to predict: the highlighted box decides what the chart shows */}
       <div className="grid grid-cols-2 gap-2 sm:gap-3">
@@ -244,11 +232,11 @@ export default function App() {
               className={cn("flex flex-col items-start rounded-lg border-2 border-b-4 px-3 py-2 text-left sm:px-5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 active ? "border-orange-fill border-b-brand bg-orange-fill text-white shadow-md" : "border-grey-light bg-white text-foreground hover:bg-bg-light")}>
               <span className="font-display text-base font-bold uppercase leading-tight tracking-wide sm:text-xl">{m.title}</span>
-              <span className={cn("text-xs sm:text-sm", active ? "text-white/90" : "text-muted-foreground")}>{m.sub}</span>
-            </button>
+                          </button>
           );
         })}
       </div>
+      {method === "current" && <p className="text-sm text-muted-foreground">A trained model forecasts the imbalance price for the next 10 hours, every hour. Pick a period and step through time.</p>}
     </div>
   );
   const message = (title: string, children: React.ReactNode) => (
@@ -316,29 +304,24 @@ export default function App() {
   const mae = withAct.length ? withAct.reduce((s, r) => s + Math.abs(r.p50 - r.actual_imbalance_price), 0) / withAct.length : null;
   const maxHi = Math.max(...rows.map((r) => r.p_spike_high)); const maxLo = Math.max(...rows.map((r) => r.p_spike_low));
   const upShare = rows.reduce((s, r) => s + r.p_up, 0) / rows.length;
-  const drivers = (rows[0].top_drivers || "").split(";").filter(Boolean);
 
   const dirText = upShare > 0.55 ? "The grid probably needs more power: prices lean above the day-ahead price."
     : upShare < 0.45 ? "The grid probably needs less power: prices lean below the day-ahead price."
       : "It is unclear whether the grid needs more or less power.";
-  const driversText = `Main drivers: ${drivers.map((x, i) => `${i + 1}. ${HELP[x] || x.replaceAll("_", " ")}`).join("; ")}.`;
   const pct = (v: number) => `${(v * 100).toFixed(0)} %`;
 
   return shell(
     <>
       {header}
       {/* one slim strip: what it means, the main drivers, the key numbers */}
-      <Card className="flex flex-wrap items-center gap-x-6 gap-y-3 order-last border-l-4 border-l-brand bg-white p-3 lg:order-none lg:h-24 lg:flex-nowrap lg:overflow-visible">
+      <Card className="flex flex-wrap items-center gap-x-6 gap-y-3 order-last border-l-4 border-l-brand bg-white p-3 lg:order-none lg:h-20 lg:flex-nowrap lg:overflow-visible">
         <div className="min-w-64 flex-1 lg:min-w-0">
-          <h2 className={cn(h2, "text-base")}>Summary.</h2>
           <p className="leading-snug lg:line-clamp-1" title={dirText}>{dirText}</p>
-          <p className="mt-1 text-sm lg:line-clamp-2 leading-snug text-muted-foreground" title={driversText}>{driversText}</p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           <Chip value={pct(maxHi)} label="high price spike" />
           <Chip value={pct(maxLo)} label="low price spike" />
           {hasAct && <Chip value={mae == null ? "–" : mae.toFixed(1)} label="average error, €/MWh" />}
-          <Info align="right" text="Spike: chance the price ends up over 50 €/MWh above (high) or below (low) the day-ahead price. The error needs real prices." />
         </div>
       </Card>
 
@@ -365,13 +348,18 @@ export default function App() {
         <div className="order-2 flex min-h-72 flex-1 flex-col gap-2 lg:order-none lg:mt-2 lg:flex-row lg:gap-4">
         {method === "current" && (
           <aside className="relative shrink-0 lg:w-56 lg:border-r lg:border-grey-light lg:pr-4" data-testid="toggles">
+            <div className="mb-3 grid grid-cols-2 items-center gap-2 lg:grid-cols-1" data-testid="period-picker">
+              <span className="col-span-2 text-sm text-muted-foreground lg:col-span-1">Period
+              </span>
+              {(Object.entries(SETS) as [SetKey, { label: string }][]).map(([k, v]) => (
+                <Button key={k} size="sm" variant={set === k ? "primary" : "outline"} className={cn(set === k ? solidBtn : outlineBtn, "w-full")} onClick={() => setSet(k)}>{v.label}</Button>
+              ))}
+            </div>
             <Button type="button" size="sm" variant="outline" className={cn(outlineBtn, "lg:hidden")} aria-expanded={inputsOpen} onClick={() => setInputsOpen(!inputsOpen)}>
               Forecast inputs{key !== "111" ? " (changed)" : ""} {inputsOpen ? "▴" : "▾"}
             </Button>
             <div className={cn(inputsOpen ? "flex" : "hidden", "absolute left-0 top-full z-20 mt-2 w-72 flex-col gap-3 rounded-md border border-border bg-white p-3 shadow-lg lg:static lg:mt-0 lg:flex lg:w-auto lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none")}>
-              <div className="text-sm text-muted-foreground">
-                <b className="font-medium text-foreground">Forecast inputs.</b> Switch one off to see a model trained without it.
-              </div>
+              <b className="text-sm font-medium">Forecast inputs</b>
               {TOGGLES.map((t) => (
                 <label key={t.id} className="flex cursor-pointer items-center gap-2 text-sm">
                   <button type="button" role="switch" aria-checked={on[t.id]} aria-label={t.label} onClick={() => setOn({ ...on, [t.id]: !on[t.id] })}
@@ -383,8 +371,8 @@ export default function App() {
               ))}
               <div className="text-sm text-muted-foreground lg:min-h-16" data-testid="variant-metrics">
                 {vIndex && vIndex.metrics && vIndex.metrics[key] && vIndex.metrics["111"] && (<>
-                  Average error on the validation month: <b className="text-foreground">{vIndex.metrics[key].mae.toFixed(1)}</b> €/MWh
-                  {key !== "111" && <> ({(vIndex.metrics[key].mae - vIndex.metrics["111"].mae >= 0 ? "+" : "") + (vIndex.metrics[key].mae - vIndex.metrics["111"].mae).toFixed(2)} vs all inputs on)</>}
+                  Average error: <b className="text-foreground">{vIndex.metrics[key].mae.toFixed(1)}</b> €/MWh
+                  {key !== "111" && <> ({(vIndex.metrics[key].mae - vIndex.metrics["111"].mae >= 0 ? "+" : "") + (vIndex.metrics[key].mae - vIndex.metrics["111"].mae).toFixed(2)})</>}
                 </>)}
               </div>
             </div>
@@ -398,13 +386,13 @@ export default function App() {
               <YAxis domain={yAxis ? [yAxis.lo, yAxis.hi] : ["auto", "auto"]} ticks={yAxis ? yAxis.ticks : undefined} allowDataOverflow stroke={C.axis} fontSize={12} unit=" €" width={56} />
               <Tooltip content={<ChartTip />} />
               <Area dataKey="prevBase" stackId="c" stroke="none" fill="transparent" legendType="none" isAnimationActive={false} />
-              <Area dataKey="prevWidth" stackId="c" stroke="none" fill={C.earlier} fillOpacity={0.15} legendType="none" name="Range of the earlier forecast" isAnimationActive={false} />
-              <Line dataKey="prevP50" stroke={C.earlier} strokeWidth={2} strokeDasharray="2 3" dot={false} name="Forecast made 3 h earlier" isAnimationActive={false} />
+              <Area dataKey="prevWidth" stackId="c" stroke="none" fill={C.earlier} fillOpacity={0.15} legendType="none" name="Earlier range" isAnimationActive={false} />
+              <Line dataKey="prevP50" stroke={C.earlier} strokeWidth={2} strokeDasharray="2 3" dot={false} name="Forecast 3 h earlier" isAnimationActive={false} />
               <Area dataKey="base" stackId="b" stroke="none" fill="transparent" legendType="none" isAnimationActive={false} />
-              <Area dataKey="width" stackId="b" stroke="none" fill={C.band} fillOpacity={0.28} name="Likely range (8 times out of 10)" isAnimationActive={false} />
-              <Line dataKey="p50" stroke={C.p50} strokeWidth={3} dot={false} name="Forecast (most likely price)" isAnimationActive={false} />
-              {hasAct && <Line dataKey="realKnown" stroke={C.actual} strokeWidth={2} dot={false} name="Real price (already published)" isAnimationActive={false} />}
-              {hasAct && <Line dataKey="realLater" stroke={C.actual} strokeDasharray="5 3" strokeWidth={2} dot={false} name="Real price (published later)" isAnimationActive={false} />}
+              <Area dataKey="width" stackId="b" stroke="none" fill={C.band} fillOpacity={0.28} name="Likely range" isAnimationActive={false} />
+              <Line dataKey="p50" stroke={C.p50} strokeWidth={3} dot={false} name="Forecast" isAnimationActive={false} />
+              {hasAct && <Line dataKey="realKnown" stroke={C.actual} strokeWidth={2} dot={false} name="Real price (known)" isAnimationActive={false} />}
+              {hasAct && <Line dataKey="realLater" stroke={C.actual} strokeDasharray="5 3" strokeWidth={2} dot={false} name="Real price (after forecast)" isAnimationActive={false} />}
               <ReferenceLine x={T} stroke={C.now} strokeWidth={2} label={{ value: "Forecast made", position: "insideTopLeft", fill: "var(--foreground)", fontSize: 12 }} />
               <ReferenceLine y={0} stroke={C.axis} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
@@ -412,9 +400,6 @@ export default function App() {
           </ResponsiveContainer>
         </div>
         </div>
-        <p className="order-4 text-xs text-muted-foreground lg:order-none lg:mt-1">
-          Real prices arrive about 1 hour late, so the forecast starts blind: at {hhmm(origin)} the latest known price is from {hhmm(iso(o0 - 75 * 60 * 1000))}. Finnish time.
-        </p>
       </Card>
     </>
   );

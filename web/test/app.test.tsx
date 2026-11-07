@@ -3,7 +3,7 @@ import React from "react";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 
-afterEach(cleanup);   // each test starts with an empty document
+afterEach(() => { cleanup(); window.history.replaceState(null, "", "/"); });   // each test starts with an empty document and a plain address
 import App from "../src/App";
 
 test("App renders forecast page from data without crashing", async () => {
@@ -13,12 +13,10 @@ test("App renders forecast page from data without crashing", async () => {
     return { ok: true, json: async () => JSON.parse(fs.readFileSync("public" + url, "utf8")) };
   }) as unknown as typeof fetch;
   render(<App />);
-  await waitFor(() => expect(screen.getByText(/Summary/)).toBeTruthy(), { timeout: 15000 });
-  expect(screen.getByText(/Main drivers/)).toBeTruthy();
+  await waitFor(() => expect(screen.getByText(/high price spike/)).toBeTruthy(), { timeout: 15000 });
   // switch to the test forecast (no actuals) and back: must not crash
   fireEvent.click(screen.getByText(/Test forecast 5 Oct/));
-  await waitFor(() => expect(screen.getByText(/Summary/)).toBeTruthy(), { timeout: 15000 });
-  expect(screen.getByText(/Main drivers/)).toBeTruthy();
+  await waitFor(() => expect(screen.getByText(/high price spike/)).toBeTruthy(), { timeout: 15000 });
   expect(screen.queryByText(/hindsight/)).toBeNull();
   // whole-period slider and date box reach the last day of the test period
   const when = () => screen.getByTestId("when").textContent;
@@ -30,7 +28,7 @@ test("App renders forecast page from data without crashing", async () => {
   fireEvent.change(screen.getByLabelText("date"), { target: { value: "2026-10-20" } });
   expect(when()).toMatch(/^20\/10\/2026 00:00$/);
   fireEvent.click(screen.getByText(/Validation 7 Sep/));
-  await waitFor(() => expect(screen.getByText(/Summary/)).toBeTruthy(), { timeout: 15000 });
+  await waitFor(() => expect(screen.getByText(/high price spike/)).toBeTruthy(), { timeout: 15000 });
 });
 
 test("two method boxes: the active one is highlighted and switching changes what the chart shows", async () => {
@@ -106,7 +104,7 @@ test("input toggles switch the chart to the matching precomputed model variant",
   await waitFor(() => expect(screen.getByTestId("when")).toBeTruthy(), { timeout: 15000 });
   expect(sw("Solar forecast").getAttribute("aria-checked")).toBe("false");
   expect(screen.getByTestId("when").textContent).toBe(hour);            // same hour as before the switch
-  expect(screen.getByTestId("variant-metrics").textContent).toMatch(/44\.0.*\+0\.80 vs all inputs on/);
+  expect(screen.getByTestId("variant-metrics").textContent).toMatch(/44\.0.*\+0\.80/);
 
   fireEvent.click(sw("Wind forecast"));                                 // solar + wind off -> "001" not computed
   await waitFor(() => expect(screen.getByText(/has not been computed yet/)).toBeTruthy(), { timeout: 15000 });
@@ -115,3 +113,14 @@ test("input toggles switch the chart to the matching precomputed model variant",
   expect(sw("Wind forecast").getAttribute("aria-checked")).toBe("true");
 });
 
+
+test("the chosen tab is shown in the address and read back from it", async () => {
+  vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 404 })));
+  window.history.replaceState(null, "", "/?method=harness");
+  render(<App />);
+  expect(screen.getByRole("button", { name: /Harness prediction/ }).getAttribute("aria-pressed")).toBe("true");
+  fireEvent.click(screen.getByRole("button", { name: /Machine-learning model/ }));
+  expect(window.location.search).toBe("");
+  fireEvent.click(screen.getByRole("button", { name: /Harness prediction/ }));
+  expect(window.location.search).toBe("?method=harness");
+});
