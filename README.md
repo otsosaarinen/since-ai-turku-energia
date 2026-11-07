@@ -47,7 +47,7 @@ npm run dev
 Next time you only need `cd web` and `npm run dev`. On macOS and Linux, `./scripts/start_web.sh` from the repo folder does the same
 (and on the model owner's computer it also rebuilds the website's data from `outputs/` first). It does not work on Windows.
 
-Other website commands (run inside the `web/` folder): `npm test` (14 tests), `npm run typecheck` (TypeScript check), `npm run build` (production build).
+Other website commands (run inside the `web/` folder): `npm test` (15 tests), `npm run typecheck` (TypeScript check), `npm run build` (production build).
 What the page shows is described under "What the website shows" further down.
 
 ## Part B: train the model yourself

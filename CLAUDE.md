@@ -29,7 +29,7 @@ decisions. SOURCES.md = data, services, components, licences. configs/default.ya
 - Short answers; state what was done and what is uncommitted. Commits/pushes only on request (he pushes himself or says so).
 
 ## Commands (uv project: `uv sync`, then `uv run ...`; macOS needed `brew install libomp`, done)
-- `uv run pytest -q` (30 tests) and `cd web && npx vitest run` (14 tests).
+- `uv run pytest -q` (30 tests) and `cd web && npx vitest run` (15 tests).
 - `uv run scripts/run_validation.py [--tag X] [--set model.key=value]` -> validation month, scored vs the organisers' baseline, outputs/X/.
 - `uv run scripts/run_rolling.py [--tag X] [--ref TAG] [--set key=value ...]` -> 8 weekly windows; judge model changes here.
 - `uv run scripts/run_final.py` -> outputs/final/forecast_backtest.csv and runs the organiser validator.

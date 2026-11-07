@@ -86,3 +86,13 @@ test("a table without a code fence is found too (small models skip it)", () => {
   expect(parseCsvBlock(other)!.rows).toHaveLength(2);
   expect(parseCsvBlock("Just words, with a comma.")).toBeNull();
 });
+
+test("an older server without presets does not blank the page", async () => {
+  global.fetch = vi.fn(async (url: string) => ({
+    ok: true, status: 200,
+    json: async () => (url.endsWith("/info") ? { llama_url: "x", models: ["m"], max_prompt: 4000 } : { job: null }),
+  })) as unknown as typeof fetch;
+  render(<HarnessPanel pollMs={10} />);
+  await waitFor(() => expect(screen.getByTestId("harness-outdated")).toBeTruthy());
+  expect(screen.getByText(/start_harness\.sh/)).toBeTruthy();
+});

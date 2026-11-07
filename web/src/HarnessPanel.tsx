@@ -105,7 +105,7 @@ const stateText = (j: JobView | null) =>
     : j.status === "done" ? `Done in ${Math.round(j.elapsed)} s.` : j.status === "stopped" ? "Stopped." : "Failed. See the progress log.";
 
 export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
-  const [info, setInfo] = useState<Info | null | "offline">(null);
+  const [info, setInfo] = useState<Info | null | "offline" | "outdated">(null);
   const [model, setModel] = useState("");
   const [preset, setPreset] = useState("");
   const [job, setJob] = useState<JobView | null>(null);
@@ -127,6 +127,7 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
     fetch(`${API}/info`).then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((i: Info) => {
         if (cancelled) return;
+        if (!i || !Array.isArray(i.presets) || !Array.isArray(i.models)) { setInfo("outdated"); return; }   // an older server version
         setInfo(i);
         setModel((m) => m || i.models.find((x) => /E4B/i.test(x)) || i.models[0] || "");
         setPreset((p) => p || i.presets[0]?.id || "");
@@ -169,7 +170,13 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
           <p>To use it: open a terminal in the repo folder, run <code>./scripts/start_harness.sh</code>, then reload this page.</p>
         </div>
       )}
-      {info && info !== "offline" && (
+      {info === "outdated" && (
+        <div className="space-y-2 text-muted-foreground" data-testid="harness-outdated">
+          <p>The harness server that is running is an older version.</p>
+          <p>Stop it (Ctrl+C in its terminal), run <code>./scripts/start_harness.sh</code> again, then reload this page.</p>
+        </div>
+      )}
+      {info && info !== "offline" && info !== "outdated" && (
         <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[22rem_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]">
           <div className="flex min-h-0 flex-col gap-3">
             <p className="text-sm text-muted-foreground">A live forecast made by an AI model that fetches open data and runs Python. It is not part of the scored submission.</p>
