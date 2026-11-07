@@ -100,6 +100,43 @@ function AnswerChart({ points }: { points: Point[] }) {
   );
 }
 
+export interface Step { n: number; title: string; detail: string; state: "done" | "active" | "failed" }
+
+/** Turns the harness progress lines into a short list of steps: one per call to the model, named by what it did. */
+export function parseSteps(lines: string[], status: JobView["status"] | null): Step[] {
+  const steps: Step[] = [];
+  let finished = false;
+  for (const line of lines) {
+    const turn = line.match(/^\[turn (\d+)\/\d+\]/);
+    const last = steps[steps.length - 1];
+    if (turn) { steps.push({ n: Number(turn[1]), title: "Asking the model", detail: "", state: "done" }); continue; }
+    if (!last) continue;
+    const tool = line.match(/^\[tool\] (\w+) ?(.*)$/);
+    if (tool) {
+      const src = tool[2].match(/"source"\s*:\s*"([^"]+)"/)?.[1];
+      last.title = tool[1] === "get_data" ? `Fetching ${src ?? "data"}` : tool[1] === "run_python" ? "Running Python" : "Fetching a web page";
+      continue;
+    }
+    const res = line.match(/^\[result\] (\d+) characters: (.*)$/);
+    if (res) {
+      const failed = /^['"]Error/.test(res[2]);
+      last.detail = failed ? `failed: ${res[2].replace(/^['"]/, "").slice(0, 90)}` : `${Number(res[1]).toLocaleString("en-GB")} characters received`;
+      continue;
+    }
+    if (line.startsWith("[done]")) { finished = true; if (last.title === "Asking the model") last.title = "Writing the answer"; }
+  }
+  if (steps.length && status === "running" && !finished) steps[steps.length - 1].state = "active";
+  if (steps.length && (status === "error" || status === "stopped")) steps[steps.length - 1].state = "failed";
+  return steps;
+}
+
+const Spinner = () => (
+  <svg className="size-4 shrink-0 animate-spin text-orange-fill" viewBox="0 0 24 24" aria-label="in progress" role="img">
+    <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeOpacity="0.25" strokeWidth="3" />
+    <path d="M21 12a9 9 0 0 0-9-9" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+  </svg>
+);
+
 const stateText = (j: JobView | null) =>
   !j ? "Ready." : j.status === "running" ? `Running … ${Math.round(j.elapsed)} s`
     : j.status === "done" ? `Done in ${Math.round(j.elapsed)} s.` : j.status === "stopped" ? "Stopped." : "Failed. See the progress log.";
@@ -112,7 +149,7 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
   const [lines, setLines] = useState<string[]>([]);
   const [err, setErr] = useState("");
   const nextRef = useRef(0);
-  const logRef = useRef<HTMLDivElement>(null);
+  const logRef = useRef<HTMLOListElement>(null);
   const running = job?.status === "running";
 
   const apply = (j: JobView | null) => {
@@ -158,6 +195,7 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
   const table = job && job.answer ? parseCsvBlock(job.answer) : null;
   const cols = table ? ["time", "metric", "value", "low", "high", "confidence"].filter((c) => table.header.includes(c)) : [];
   const points = table ? chartPoints(table) : [];
+  const steps = parseSteps(lines, job ? job.status : null);
   const text = job && job.answer ? splitAnswer(job.answer).text : "";
 
   return (
@@ -204,14 +242,26 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
             {err && <p className="text-sm text-destructive" role="alert">{err}</p>}
           </div>
           <div className="flex min-h-0 flex-col gap-3">
-            <div className="flex min-h-0 flex-col lg:flex-1">
+            <div className="flex min-h-0 flex-col lg:shrink-0 lg:max-h-[40%]">
               <h3 className="font-display text-base font-bold uppercase tracking-wide">Progress.</h3>
-              <div ref={logRef} data-testid="harness-log" className="mt-1 h-64 overflow-auto rounded-md bg-bg-light p-2 font-mono text-xs leading-snug lg:h-auto lg:min-h-0 lg:flex-1">
-                {lines.length === 0 ? <span className="text-muted-foreground">Nothing yet. A run takes a few minutes.</span> : lines.map((l, i) => <div key={i} className="break-words">{l}</div>)}
-              </div>
+              <ol ref={logRef} data-testid="harness-log" className="mt-1 max-h-56 min-h-0 space-y-1 overflow-auto rounded-md bg-bg-light p-3 text-sm">
+                {steps.length === 0 && (
+                  <li className="flex items-center gap-2 text-muted-foreground">{running ? <><Spinner /> Starting the model …</> : "Nothing yet. A run takes a few minutes."}</li>
+                )}
+                {steps.map((st) => (
+                  <li key={st.n} data-state={st.state} className={cn("flex flex-col", st.state === "done" ? "text-muted-foreground line-through" : st.state === "failed" ? "text-destructive" : "font-medium text-foreground")}>
+                    <span className="flex items-center gap-2">
+                      {st.state === "active" ? <Spinner /> : <span className="w-4 shrink-0 text-center no-underline">{st.state === "done" ? "✓" : "✕"}</span>}
+                      <span>Step {st.n}: {st.title}{st.state === "active" ? " …" : ""}</span>
+                    </span>
+                    {st.detail && <span className="ml-6 text-xs font-normal">{st.detail}</span>}
+                  </li>
+                ))}
+                {(job?.status === "error") && lines.length > 0 && <li className="pt-1 text-xs text-destructive">{lines.filter((l) => !/^\[(turn|tool|result|start|done)/.test(l)).slice(-2).join(" ")}</li>}
+              </ol>
             </div>
             {job && job.answer && (
-              <div className="lg:max-h-[45%] lg:shrink-0 lg:overflow-auto">
+              <div className="min-h-0 lg:flex-1 lg:overflow-auto">
                 <h3 className="font-display text-base font-bold uppercase tracking-wide">Answer.</h3>
                 {points.length > 1 && <AnswerChart points={points} />}
                 {table && cols.length > 0 && (
