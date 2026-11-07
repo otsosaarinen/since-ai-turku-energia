@@ -7,3 +7,4 @@ Fingrid key: `harness/key.txt` with a line `FINGRID_API_KEY=...` (git-ignored). 
 Test results and limits: `EXPERIMENTS.md` section 8. Do not commit `answer*.txt` or `reports/` (git-ignored).
 Changes to the upstream code (copied at b44314d): the files were reformatted by the editor (formatting and unused imports only), and `harness.py` got a `--progress` flag (or `HARNESS_PROGRESS=1`)
 that prints each turn, tool call and result size to stderr. `server.py` is new (written for this repo): the local control server used by the website's Harness panel, see the main README.
+The website panel runs only the two fixed prompts in `server.py` (`PRESETS`); there is no free-text prompt on the page.

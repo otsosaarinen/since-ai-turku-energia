@@ -7,29 +7,9 @@ import { Button, Card, cn } from "@/design-system/the-reading-room-3066fa";
 // (e.g. Vercel) the server does not exist, so the panel only explains how to start it.
 
 const API = "/harness-api";
-const SPOT_STEPS = "Follow these steps exactly.";
-const PRESETS = [
-  {
-    label: "Imbalance price, next 12 h",
-    prompt:
-      `Forecast the Finnish imbalance price for every 2 hours of the next 12 hours (6 rows, starting at the next full hour). ${SPOT_STEPS} ` +
-      "1) get_data nordpool_price: take the Finland day-ahead spot price for each of those hours. " +
-      "2) get_data fingrid_imbalance_price with start = 5 hours ago and end = now (ISO8601 UTC): you get about 20 quarter-hour prices. " +
-      "Pair them with the spot price of the same quarter-hour and compute the spread = imbalance price minus spot, then its median, 10th and 90th percentile with run_python. " +
-      "3) Forecast for each hour = spot of that hour + median spread; low = spot + 10th percentile spread; high = spot + 90th percentile spread. " +
-      "Do NOT extrapolate a trend line. Clamp all values to -50..400 EUR/MWh. " +
-      "4) End with the csv block, horizon=24h, metric=imbalance_price, one row per 2 hours. Keep the explanation under 10 lines.",
-  },
-  {
-    label: "Day-ahead price, next 12 h",
-    prompt:
-      "Get nordpool_price and list the Finland day-ahead price for every 2 hours of the next 12 hours starting at the next full hour. " +
-      "Do not invent any numbers. End with the csv block, horizon=24h, metric=spot_price, low=high=value, drivers=nordpool_price.",
-  },
-];
-
-interface Info { llama_url: string; models: string[]; max_prompt: number }
-export interface JobView { id: string; status: "running" | "done" | "error" | "stopped"; model: string; prompt: string; elapsed: number; lines: string[]; next: number; answer: string }
+interface Preset { id: string; label: string; about: string }
+interface Info { llama_url: string; models: string[]; presets: Preset[] }
+export interface JobView { id: string; status: "running" | "done" | "error" | "stopped"; model: string; preset: string; elapsed: number; lines: string[]; next: number; answer: string }
 
 const solidBtn = "border-2 border-orange-fill bg-orange-fill text-white hover:bg-orange-fill/90";
 const outlineBtn = "border-2 border-navy bg-white text-navy hover:bg-bg-light";
@@ -52,11 +32,27 @@ export function fiTime(t: string): string {
 }
 const hhmm = (ms: number) => fiTime(String(ms)).slice(11);
 
-/** Rows of the first ```csv block of an answer (header + rows), or null. Understands "quoted, fields". */
-export function parseCsvBlock(answer: string): { header: string[]; rows: string[][] } | null {
+/** Where the table is in an answer: a ```csv block, any code block that starts like a table, or plain comma-separated lines (small models often skip the fence). */
+export function splitAnswer(answer: string): { csv: string | null; text: string } {
   const m = answer.match(/```csv[ \t]*\n([\s\S]*?)```/);
-  if (!m) return null;
-  const rows = m[1].trim().split("\n").filter((l) => l.trim()).map((line) => {
+  if (m) return { csv: m[1], text: answer.replace(m[0], "").trim() };
+  for (const f of answer.matchAll(/```[a-z]*[ \t]*\n([\s\S]*?)```/g)) {
+    const first = f[1].trim().split("\n")[0].toLowerCase();
+    if (first.includes("time") && first.includes("value")) return { csv: f[1], text: answer.replace(f[0], "").trim() };
+  }
+  const lines = answer.split("\n");
+  const start = lines.findIndex((l) => l.includes(",") && /(^|,)\s*time\s*(,|$)/i.test(l) && /(^|,)\s*value\s*(,|$)/i.test(l));
+  if (start < 0) return { csv: null, text: answer.trim() };
+  let end = start + 1;
+  while (end < lines.length && lines[end].includes(",")) end++;
+  return { csv: lines.slice(start, end).join("\n"), text: [...lines.slice(0, start), ...lines.slice(end)].join("\n").trim() };
+}
+
+/** Rows of the table in an answer (header + rows), or null. Understands "quoted, fields". */
+export function parseCsvBlock(answer: string): { header: string[]; rows: string[][] } | null {
+  const { csv } = splitAnswer(answer);
+  if (!csv) return null;
+  const rows = csv.trim().split("\n").filter((l) => l.trim()).map((line) => {
     const out: string[] = [];
     let cur = "", q = false;
     for (let i = 0; i < line.length; i++) {
@@ -111,7 +107,7 @@ const stateText = (j: JobView | null) =>
 export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
   const [info, setInfo] = useState<Info | null | "offline">(null);
   const [model, setModel] = useState("");
-  const [prompt, setPrompt] = useState(PRESETS[0].prompt);
+  const [preset, setPreset] = useState("");
   const [job, setJob] = useState<JobView | null>(null);
   const [lines, setLines] = useState<string[]>([]);
   const [err, setErr] = useState("");
@@ -133,6 +129,7 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
         if (cancelled) return;
         setInfo(i);
         setModel((m) => m || i.models.find((x) => /E4B/i.test(x)) || i.models[0] || "");
+        setPreset((p) => p || i.presets[0]?.id || "");
       }).catch(() => { if (!cancelled) setInfo("offline"); });
     fetch(`${API}/job`).then((r) => (r.ok ? r.json() : null)).then((d) => { if (!cancelled && d && d.job) apply(d.job); }).catch(() => undefined);
     return () => { cancelled = true; };
@@ -150,7 +147,7 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
 
   const start = () => {
     setErr("");
-    fetch(`${API}/run`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt, model }) })
+    fetch(`${API}/run`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ preset, model }) })
       .then(async (r) => { const d = await r.json(); if (!r.ok) throw new Error(d.error || String(r.status)); return d; })
       .then((d) => { nextRef.current = 0; setLines([]); apply(d.job); })
       .catch((e: Error) => setErr(e.message));
@@ -160,7 +157,7 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
   const table = job && job.answer ? parseCsvBlock(job.answer) : null;
   const cols = table ? ["time", "metric", "value", "low", "high", "confidence"].filter((c) => table.header.includes(c)) : [];
   const points = table ? chartPoints(table) : [];
-  const text = job && job.answer ? job.answer.replace(/```csv[\s\S]*?```/, "").trim() : "";
+  const text = job && job.answer ? splitAnswer(job.answer).text : "";
 
   return (
     <Card className="flex flex-1 flex-col gap-3 bg-white p-4 lg:min-h-0 lg:overflow-hidden">
@@ -183,17 +180,17 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
                 {info.models.map((m) => <option key={m} value={m}>{m}</option>)}
               </select>
             </label>
-            <div className="flex flex-wrap gap-2">
-              {PRESETS.map((p) => (
-                <Button key={p.label} size="sm" variant="outline" className={outlineBtn} disabled={running} onClick={() => setPrompt(p.prompt)}>{p.label}</Button>
-              ))}
+            <div className="flex flex-col gap-1 text-sm">
+              <span className="font-medium">What to forecast</span>
+              <div className="flex flex-wrap gap-2">
+                {info.presets.map((p) => (
+                  <Button key={p.id} size="sm" variant={preset === p.id ? "primary" : "outline"} className={preset === p.id ? solidBtn : outlineBtn} aria-pressed={preset === p.id} disabled={running} onClick={() => setPreset(p.id)}>{p.label}</Button>
+                ))}
+              </div>
+              <p className="mt-1 text-muted-foreground" data-testid="harness-about">{info.presets.find((p) => p.id === preset)?.about}</p>
             </div>
-            <label className="flex flex-col gap-1 text-sm lg:min-h-0 lg:flex-1">
-              <span className="font-medium">Prompt</span>
-              <textarea aria-label="harness prompt" className="h-40 resize-none rounded-md border border-input bg-white p-2 text-sm lg:h-auto lg:min-h-0 lg:flex-1" maxLength={info.max_prompt} value={prompt} disabled={running} onChange={(e) => setPrompt(e.target.value)} />
-            </label>
             <div className="flex items-center gap-3">
-              <Button size="sm" variant="primary" className={cn(solidBtn, "w-28")} disabled={running || !model || !prompt.trim()} onClick={start}>Start run</Button>
+              <Button size="sm" variant="primary" className={cn(solidBtn, "w-28")} disabled={running || !model || !preset} onClick={start}>Start run</Button>
               <Button size="sm" variant="outline" className={cn(outlineBtn, "w-20")} disabled={!running} onClick={stop}>Stop</Button>
               <span className="text-sm text-muted-foreground" data-testid="harness-state">{stateText(job)}</span>
             </div>

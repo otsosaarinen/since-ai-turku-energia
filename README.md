@@ -47,7 +47,7 @@ npm run dev
 Next time you only need `cd web` and `npm run dev`. On macOS and Linux, `./scripts/start_web.sh` from the repo folder does the same
 (and on the model owner's computer it also rebuilds the website's data from `outputs/` first). It does not work on Windows.
 
-Other website commands (run inside the `web/` folder): `npm test` (13 tests), `npm run typecheck` (TypeScript check), `npm run build` (production build).
+Other website commands (run inside the `web/` folder): `npm test` (14 tests), `npm run typecheck` (TypeScript check), `npm run build` (production build).
 What the page shows is described under "What the website shows" further down.
 
 ## Part B: train the model yourself
@@ -164,8 +164,8 @@ HARNESS_PROVIDER=llamacpp LLAMACPP_BASE_URL=http://localhost:9931/v1 \
 ./scripts/start_harness.sh     # control server on 127.0.0.1:8765; needs the local model server (Llama app, port 9931)
 ./scripts/start_web.sh         # the website; pick "Harness prediction", choose a model, press Start run
 ```
-The panel offers only the small gemma-4 E4B model (the server filters the Llama app's model list; `HARNESS_MODEL_FILTER=E4B,12B ./scripts/start_harness.sh` offers more), has two ready-made prompts (imbalance price next 12 h; day-ahead price next 12 h) and a text box for your own,
-shows each step live (turn, tool call, result size) and, when finished, the answer as a chart (orange forecast line, blue low-to-high range) and a table in Finnish time. `[turn k/10]` counts calls to the model; 10 is only the maximum, a run ends when the model decides to answer. The server tells the model the current UTC time and to use ISO timestamps (small models otherwise send words like "5 hours ago" to the data sources). It works only on your own computer with the Vite dev server
+The panel offers only the small gemma-4 E4B model (the server filters the Llama app's model list; `HARNESS_MODEL_FILTER=E4B,12B ./scripts/start_harness.sh` offers more), has two fixed forecast choices (imbalance price next 12 h; day-ahead price next 12 h) with a one-line description each; the prompt text cannot be edited on the page and lives in `harness/server.py` (`PRESETS`), which accepts only a preset name,
+shows each step live (turn, tool call, result size) and, when finished, the answer (the table is found even if the model forgets the code fence) as a chart (orange forecast line, blue low-to-high range) and a table in Finnish time. `[turn k/10]` counts calls to the model; 10 is only the maximum, a run ends when the model decides to answer. The server tells the model the current UTC time and to use ISO timestamps (small models otherwise send words like "5 hours ago" to the data sources). It works only on your own computer with the Vite dev server
 (the proxy `/harness-api` in `web/vite.config.ts`); on a hosted copy (Vercel) it only explains how to start the server. One run at a time, stopped after 20 minutes, **Stop** ends it.
 The server (`harness/server.py`, written for this repo) listens on 127.0.0.1 only and refuses any request whose Host or Origin is not localhost, because a run executes model-written Python.
 On the command line the same progress lines appear with `--progress` (added to `harness/harness.py`).

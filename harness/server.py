@@ -7,7 +7,7 @@ through the Vite dev proxy at /harness-api.
 Safety: harness.py lets a model run Python on this computer, so this server
   * listens on 127.0.0.1 only,
   * refuses requests whose Host or Origin header is not localhost / 127.0.0.1 (blocks other websites and DNS rebinding),
-  * runs one job at a time, limits the prompt length and stops a job after 20 minutes.
+  * runs one job at a time, accepts only the fixed prompts in PRESETS (the browser sends a preset name, never text) and stops a job after 20 minutes.
 """
 
 import json
@@ -27,7 +27,31 @@ from urllib.parse import parse_qs, urlsplit
 HERE = Path(__file__).resolve().parent
 PORT = int(os.environ.get("HARNESS_SERVER_PORT", "8765"))
 LLAMA_URL = os.environ.get("LLAMACPP_BASE_URL", "http://localhost:9931/v1")
-MAX_PROMPT = 4000
+# The prompts live here, not in the browser: a run executes model-written Python, so the website can only choose one of these.
+PRESETS = {
+    "imbalance": {
+        "label": "Imbalance price, next 12 h",
+        "about": "Day-ahead price plus the typical spread (imbalance minus day-ahead) of the last 5 hours of real prices.",
+        "prompt": (
+            "Forecast the Finnish imbalance price for every 2 hours of the next 12 hours (6 rows, starting at the next full hour). Follow these steps exactly. "
+            "1) get_data nordpool_price: take the Finland day-ahead spot price for each of those hours. "
+            "2) get_data fingrid_imbalance_price with start = 5 hours ago and end = now (ISO8601 UTC): you get about 20 quarter-hour prices. "
+            "Pair them with the spot price of the same quarter-hour and compute the spread = imbalance price minus spot, then its median, 10th and 90th percentile with run_python. "
+            "3) Forecast for each hour = spot of that hour + median spread; low = spot + 10th percentile spread; high = spot + 90th percentile spread. "
+            "Do NOT extrapolate a trend line. Clamp all values to -50..400 EUR/MWh. "
+            "4) End with the csv block, horizon=24h, metric=imbalance_price, one row per 2 hours. Keep the explanation under 10 lines. Only use hours later than the current time."
+        ),
+    },
+    "dayahead": {
+        "label": "Day-ahead price, next 12 h",
+        "about": "Lists the published day-ahead prices of the next hours. No forecasting.",
+        "prompt": (
+            "Get nordpool_price and list the Finland day-ahead price for every 2 hours of the next 12 hours starting at the next full hour. "
+            "Do not invent any numbers. Only list hours later than the current time. End with the csv block inside a ```csv code fence, "
+            "horizon=24h, metric=spot_price, low=high=value, drivers=nordpool_price."
+        ),
+    },
+}
 TIMEOUT_S = 20 * 60
 LOCAL_NAMES = {"localhost", "127.0.0.1"}
 MODEL_RE = re.compile(r"^[\w./:\-]{1,200}$")
@@ -57,19 +81,17 @@ def origin_ok(origin: str | None) -> bool:
 
 
 def check_run_request(body: object) -> tuple[str, str] | str:
-    """Validate a start request. Returns (prompt, model) or an error message."""
+    """Validate a start request. Returns (preset id, model) or an error message."""
     if not isinstance(body, dict):
         return "body must be a JSON object"
-    prompt, model = body.get("prompt"), body.get("model")
-    if not isinstance(prompt, str) or not prompt.strip():
-        return "prompt is empty"
-    if len(prompt) > MAX_PROMPT:
-        return f"prompt is longer than {MAX_PROMPT} characters"
+    preset, model = body.get("preset"), body.get("model")
+    if preset not in PRESETS:
+        return "unknown preset"
     if not isinstance(model, str) or not MODEL_RE.match(model):
         return "model name is missing or has odd characters"
     if not model_allowed(model):
         return f"only models matching {MODEL_FILTER} are allowed (set HARNESS_MODEL_FILTER to change)"
-    return prompt.strip(), model
+    return preset, model
 
 
 def with_context(prompt: str, now: datetime | None = None) -> str:
@@ -77,7 +99,7 @@ def with_context(prompt: str, now: datetime | None = None) -> str:
     now = now or datetime.now(timezone.utc)
     stamp = now.strftime("%Y-%m-%dT%H:%M:%SZ")
     return (f"Current time (UTC): {stamp}. In get_data params always use ISO8601 UTC timestamps such as {stamp}, "
-            "never words like 'now' or '5 hours ago' (compute them from the current time above). Write times in the csv block as ISO8601 UTC.\n\n" + prompt)
+            "never words like 'now' or '5 hours ago' (compute them from the current time above). Only forecast hours later than the current time. Put the csv table inside a ```csv code fence, with times as ISO8601 UTC.\n\n" + prompt)
 
 
 def build_cmd(prompt: str, model: str) -> list[str]:
@@ -122,13 +144,13 @@ def _run_job(job: dict) -> None:
         job.pop("proc", None)
 
 
-def start_job(prompt: str, model: str) -> dict | str:
+def start_job(preset: str, model: str) -> dict | str:
     global JOB
     with LOCK:
         if JOB and JOB["status"] == "running":
             return "a run is already in progress"
         JOB = {
-            "id": uuid.uuid4().hex[:8], "status": "running", "prompt": prompt, "model": model,
+            "id": uuid.uuid4().hex[:8], "status": "running", "preset": preset, "prompt": PRESETS[preset]["prompt"], "model": model,
             "started": time.time(), "ended": None, "lines": [f"[start] model {model}"], "answer": "",
         }
         job = JOB
@@ -154,7 +176,7 @@ def job_view(since: int = 0) -> dict | None:
             return None
         end = JOB["ended"] or time.time()
         return {
-            "id": JOB["id"], "status": JOB["status"], "model": JOB["model"], "prompt": JOB["prompt"],
+            "id": JOB["id"], "status": JOB["status"], "model": JOB["model"], "preset": JOB["preset"],
             "elapsed": round(end - JOB["started"], 1), "lines": JOB["lines"][since:], "next": len(JOB["lines"]), "answer": JOB["answer"],
         }
 
@@ -193,7 +215,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         url = urlsplit(self.path)
         if url.path == "/api/info":
-            self._send(200, {"llama_url": LLAMA_URL, "models": list_models(), "max_prompt": MAX_PROMPT})
+            self._send(200, {"llama_url": LLAMA_URL, "models": list_models(), "presets": [{"id": k, "label": v["label"], "about": v["about"]} for k, v in PRESETS.items()]})
         elif url.path == "/api/job":
             since = int((parse_qs(url.query).get("since") or ["0"])[0] or 0)
             self._send(200, {"job": job_view(since)})

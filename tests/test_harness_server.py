@@ -24,9 +24,10 @@ def test_only_this_computer_may_talk_to_the_server():
 
 
 def test_run_request_is_checked():
-    assert server.check_run_request({"prompt": " hi ", "model": "ggml-org/gemma-4-E4B-it-GGUF:Q8_0"}) == ("hi", "ggml-org/gemma-4-E4B-it-GGUF:Q8_0")
-    for bad in (None, [], {}, {"prompt": "", "model": "m"}, {"prompt": "x" * 5000, "model": "m"},
-                {"prompt": "x", "model": "a b"}, {"prompt": "x", "model": "m; rm -rf ~"}, {"prompt": "x", "model": 3}):
+    assert server.check_run_request({"preset": "imbalance", "model": "ggml-org/gemma-4-E4B-it-GGUF:Q8_0"}) == ("imbalance", "ggml-org/gemma-4-E4B-it-GGUF:Q8_0")
+    for bad in (None, [], {}, {"preset": "x", "model": "E4B"}, {"preset": "imbalance"}, {"preset": "imbalance", "model": "a b E4B"},
+                {"preset": "imbalance", "model": "E4B; rm -rf ~"}, {"preset": "imbalance", "model": 3},
+                {"prompt": "do anything", "model": "ggml-org/gemma-4-E4B-it-GGUF:Q8_0"}):   # free text is never accepted
         assert isinstance(server.check_run_request(bad), str), bad
 
 
@@ -34,7 +35,7 @@ def test_only_the_light_model_is_allowed():
     assert server.model_allowed("ggml-org/gemma-4-E4B-it-GGUF:Q8_0")
     assert not server.model_allowed("ggml-org/gemma-4-12B-it-GGUF:Q8_0")
     assert not server.model_allowed("Qwen/Qwen3-1.7B-GGUF:Q8_0")
-    assert isinstance(server.check_run_request({"prompt": "x", "model": "ggml-org/gemma-4-12B-it-GGUF:Q8_0"}), str)
+    assert isinstance(server.check_run_request({"preset": "imbalance", "model": "ggml-org/gemma-4-12B-it-GGUF:Q8_0"}), str)
 
 
 def test_the_model_is_told_the_current_time():
@@ -63,9 +64,9 @@ def fresh_state():
 def test_job_lifecycle_with_a_stand_in_for_the_harness(monkeypatch):
     code = "import sys,time; print('[tool] get_data x', file=sys.stderr, flush=True); time.sleep(0.2); print('the answer')"
     monkeypatch.setattr(server, "build_cmd", lambda prompt, model: [sys.executable, "-c", code])
-    job = server.start_job("p", "m")
+    job = server.start_job("imbalance", "m")
     assert isinstance(job, dict)
-    assert server.start_job("p2", "m") == "a run is already in progress"
+    assert server.start_job("dayahead", "m") == "a run is already in progress"
     assert _wait(lambda: server.job_view()["status"] != "running")
     v = server.job_view()
     assert v["status"] == "done" and v["answer"].strip() == "the answer"
@@ -75,7 +76,7 @@ def test_job_lifecycle_with_a_stand_in_for_the_harness(monkeypatch):
 
 def test_stop_ends_a_running_job(monkeypatch):
     monkeypatch.setattr(server, "build_cmd", lambda prompt, model: [sys.executable, "-c", "import time; time.sleep(60)"])
-    server.start_job("p", "m")
+    server.start_job("imbalance", "m")
     assert _wait(lambda: server.JOB.get("proc") is not None)
     assert server.stop_job() is True
     assert _wait(lambda: server.job_view()["status"] == "stopped")
@@ -84,6 +85,6 @@ def test_stop_ends_a_running_job(monkeypatch):
 
 def test_failed_job_is_reported(monkeypatch):
     monkeypatch.setattr(server, "build_cmd", lambda prompt, model: [sys.executable, "-c", "import sys; sys.exit(3)"])
-    server.start_job("p", "m")
+    server.start_job("imbalance", "m")
     assert _wait(lambda: server.job_view()["status"] != "running")
     assert server.job_view()["status"] == "error"

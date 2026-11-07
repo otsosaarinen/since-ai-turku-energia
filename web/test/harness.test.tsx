@@ -1,7 +1,7 @@
 import React from "react";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
-import HarnessPanel, { chartPoints, fiTime, parseCsvBlock, timeMs } from "../src/HarnessPanel";
+import HarnessPanel, { chartPoints, fiTime, parseCsvBlock, splitAnswer, timeMs } from "../src/HarnessPanel";
 
 // give the chart a real size so Recharts draws it in jsdom
 vi.mock("recharts", async (orig) => {
@@ -31,11 +31,11 @@ test("the panel says how to start the server when it is not running", async () =
 test("start a run, watch the progress, see the answer table", async () => {
   let polls = 0;
   const calls: { url: string; body?: string }[] = [];
-  const base = { id: "a1", model: "ggml-org/gemma-4-E4B-it-GGUF:Q8_0", prompt: "p" };
+  const base = { id: "a1", model: "ggml-org/gemma-4-E4B-it-GGUF:Q8_0", preset: "imbalance" };
   global.fetch = vi.fn(async (url: string, init?: RequestInit) => {
     calls.push({ url, body: init?.body as string | undefined });
     const ok = (data: unknown) => ({ ok: true, status: 200, json: async () => data });
-    if (url.endsWith("/info")) return ok({ llama_url: "x", models: ["ggml-org/gemma-4-12B-it-GGUF:Q8_0", "ggml-org/gemma-4-E4B-it-GGUF:Q8_0"], max_prompt: 4000 });
+    if (url.endsWith("/info")) return ok({ llama_url: "x", models: ["ggml-org/gemma-4-12B-it-GGUF:Q8_0", "ggml-org/gemma-4-E4B-it-GGUF:Q8_0"], presets: [{ id: "imbalance", label: "Imbalance price, next 12 h", about: "About imbalance." }, { id: "dayahead", label: "Day-ahead price, next 12 h", about: "About day-ahead." }] });
     if (url.endsWith("/job")) return ok({ job: null });
     if (url.endsWith("/run")) return ok({ job: { ...base, status: "running", elapsed: 0, lines: ["[start] model"], next: 1, answer: "" } });
     if (url.includes("/job?since=")) {
@@ -49,6 +49,9 @@ test("start a run, watch the progress, see the answer table", async () => {
   render(<HarnessPanel pollMs={10} />);
   const select = (await screen.findByLabelText("harness model")) as HTMLSelectElement;
   await waitFor(() => expect(select.value).toMatch(/E4B/));                       // the small fast model is the default
+  expect(screen.queryByLabelText("harness prompt")).toBeNull();                   // the prompt cannot be edited
+  fireEvent.click(screen.getByRole("button", { name: "Day-ahead price, next 12 h" }));
+  expect(screen.getByTestId("harness-about").textContent).toMatch(/About day-ahead/);
   fireEvent.click(screen.getByRole("button", { name: "Start run" }));
   await waitFor(() => expect(screen.getByTestId("harness-log").textContent).toMatch(/get_data nordpool_price/));
   await waitFor(() => expect(screen.getByTestId("harness-table")).toBeTruthy());
@@ -58,7 +61,7 @@ test("start a run, watch the progress, see the answer table", async () => {
   expect(screen.getByTestId("harness-chart").querySelectorAll(".recharts-line").length).toBeGreaterThan(0);   // and drawn as a chart
   const run = calls.find((c) => c.url.endsWith("/run"))!;
   expect(JSON.parse(run.body!).model).toMatch(/E4B/);
-  expect(JSON.parse(run.body!).prompt).toMatch(/nordpool_price/);
+  expect(JSON.parse(run.body!)).toEqual({ preset: "dayahead", model: "ggml-org/gemma-4-E4B-it-GGUF:Q8_0" });   // only a preset name is sent, never text
 });
 
 test("times from the model: ISO, no zone, Unix seconds; chart points sorted with a range", () => {
@@ -71,4 +74,15 @@ test("times from the model: ISO, no zone, Unix seconds; chart points sorted with
   expect(pts[0].ms).toBeLessThan(pts[1].ms);
   expect(pts[0]).toMatchObject({ value: 50, base: 20, width: 60 });            // the Unix-seconds row is earlier
   expect(pts[1]).toMatchObject({ value: 42.5, base: 10, width: 80 });
+});
+
+test("a table without a code fence is found too (small models skip it)", () => {
+  const plain = "Done.\nhorizon,time,area,metric,value,unit,low,high,confidence,drivers\n24h,2026-11-07T13:00:00Z,FI,spot_price,29.99,EUR/MWh,29.99,29.99,High,x\n24h,2026-11-07T15:00:00Z,FI,spot_price,24.4,EUR/MWh,24.4,24.4,High,x\n\nBye.";
+  const t = parseCsvBlock(plain)!;
+  expect(t.rows).toHaveLength(2);
+  expect(splitAnswer(plain).text).toBe("Done.\n\nBye.");
+  expect(chartPoints(t)).toHaveLength(2);
+  const other = "```\ntime,value\n2026-11-07T13:00:00Z,5\n2026-11-07T14:00:00Z,6\n```";
+  expect(parseCsvBlock(other)!.rows).toHaveLength(2);
+  expect(parseCsvBlock("Just words, with a comma.")).toBeNull();
 });
