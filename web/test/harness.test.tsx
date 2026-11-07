@@ -25,7 +25,7 @@ test("the panel says how to start the server when it is not running", async () =
   global.fetch = vi.fn(async () => ({ ok: false, status: 404, json: async () => ({}) })) as unknown as typeof fetch;
   render(<HarnessPanel pollMs={10} />);
   await waitFor(() => expect(screen.getByTestId("harness-offline")).toBeTruthy());
-  expect(screen.getByText(/start_harness\.sh/)).toBeTruthy();
+  expect(screen.getByText(/scripts\/start\.sh/)).toBeTruthy();
 });
 
 test("the panel asks for missing API keys and saves one", async () => {
@@ -60,8 +60,7 @@ test("a key that is already saved is still asked on the page, so the Fingrid key
   }) as unknown as typeof fetch;
 
   render(<HarnessPanel pollMs={10} />);
-  fireEvent.click(await screen.findByText("Settings"));                  // the key fields live in the Settings pop-up
-  await waitFor(() => expect(screen.getByTestId("harness-keys")).toBeTruthy());
+  await waitFor(() => expect(screen.getByTestId("harness-keys")).toBeTruthy());   // keys sit under the Settings dropdown
   expect(screen.getByLabelText("FINGRID_API_KEY value")).toBeTruthy();   // key.txt already holds it, yet the field is offered here
   expect(screen.getByLabelText("ENTSOE_API_KEY value")).toBeTruthy();
 });
@@ -85,17 +84,17 @@ test("start a run, watch the progress, see the answer table", async () => {
   }) as unknown as typeof fetch;
 
   render(<HarnessPanel pollMs={10} />);
-  fireEvent.click(await screen.findByText("Settings"));                           // the model picker lives in the Settings pop-up
-  const select = (await screen.findByLabelText("harness model")) as HTMLSelectElement;
+  const select = (await screen.findByLabelText("harness model")) as HTMLSelectElement;   // under the Settings dropdown
   await waitFor(() => expect(select.value).toMatch(/E4B/));                       // the small fast model is the default
-  fireEvent.click(screen.getByRole("button", { name: "Close" }));
   expect(screen.queryByLabelText("harness prompt")).toBeNull();                   // the prompt cannot be edited
   fireEvent.click(screen.getByRole("button", { name: "Day-ahead price, next 12 h" }));
   fireEvent.click(screen.getByRole("button", { name: "Start run" }));
   await waitFor(() => expect(screen.getByTestId("harness-log").textContent).toMatch(/Fetching nordpool_price/));
+  expect(screen.getByTestId("harness-log").closest("details")!.open).toBe(true);   // progress is out in the open while the run is going
   await waitFor(() => expect(screen.getByTestId("harness-chart")).toBeTruthy());   // a forecast with several points is drawn as a chart (the table is for answers without a chart)
   expect(screen.getByTestId("harness-log").textContent).toMatch(/Step 1: Fetching nordpool_price.*Step 2: Writing the answer/);   // steps in order
   expect(screen.getByTestId("harness-state").textContent).toMatch(/Done in 9 s/);
+  expect(screen.getByTestId("harness-log").closest("details")!.open).toBe(false);   // once the forecast is there, the progress folds into a dropdown
   expect(screen.getByTestId("harness-chart").querySelectorAll(".recharts-line").length).toBeGreaterThan(0);   // and drawn as a chart
   const run = calls.find((c) => c.url.endsWith("/run"))!;
   expect(JSON.parse(run.body!).model).toMatch(/E4B/);
@@ -141,7 +140,7 @@ test("an older server without presets does not blank the page", async () => {
   })) as unknown as typeof fetch;
   render(<HarnessPanel pollMs={10} />);
   await waitFor(() => expect(screen.getByTestId("harness-outdated")).toBeTruthy());
-  expect(screen.getByText(/start_harness\.sh/)).toBeTruthy();
+  expect(screen.getByText(/scripts\/start\.sh/)).toBeTruthy();
 });
 
 test("progress lines become a list of steps: finished ones struck through, the current one with a spinner", () => {

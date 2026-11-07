@@ -312,7 +312,7 @@ demand or price forecast is in scope. Drive it from recent actuals plus the weat
         curve; extend demand from the last actuals by the weekly load shape. The
         day-ahead auction already prices tomorrow — that is the market's forecast,
         not yours: use hours up to now as calibration and predict the rest.
-  7 d   the trend plus the edge cases: a wind lull, a cloud build-up, a demand step,
+  10 d  the trend plus the edge cases: a wind lull, a cloud build-up, a demand step,
         an outage or a standing warning. Use the hourly weather feed as the driver and
         your own fitted relations for the rest; there is no published price that far out,
         so give it as a trend with a range and say so. State any
@@ -325,9 +325,14 @@ Always state the timestamp of each live value; they have different lags.
 OUTPUT CONTRACT — after the analysis, end with ONE fenced csv block of the predicted
 values so it can be exported to csv/markdown. Columns, exactly:
   horizon,time,area,metric,value,unit,low,high,confidence,drivers
-horizon = 24h|7d; time = ISO8601 UTC (hourly rows for 24h, daily for 7d); value = your
-forecast number; low/high = your range; drivers = the sources behind that row. Every row
-is your own forecast. Prose above the block is expected; nothing after it.
+horizon = 24h|10d; time = ISO8601 UTC (hourly rows for 24h, daily for 10d); value = your
+forecast number; low/high = your range; confidence = high|medium|low; drivers = the reason
+behind that row, one line, detailed enough to justify the number: the source(s) with the live
+value and its timestamp, the relation or shift you applied and which way it moved the number
+(e.g. `spot 42.1; surplus -310 MW at 17:05Z -> spread +6; wind falling -> upper half`).
+Put the parts of drivers in ONE csv field: join them with ' ; ' and use no comma inside, so
+the row keeps its columns. Every row is your own forecast. Prose above the block is expected;
+nothing after it.
 """
 
 

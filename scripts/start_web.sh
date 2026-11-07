@@ -6,7 +6,7 @@
 set -e
 cd "$(dirname "$0")/.."
 if [ -f outputs/final/forecast_backtest.csv ] && [ -f outputs/validation/backtest_vs_actual.csv ]; then
-  uv run scripts/export_web_data.py
+  ./scripts/start.sh --data
 elif [ -f web/public/data/final.json ] && [ -f web/public/data/validation.json ]; then
   echo "No model outputs here; using the ready-made files in web/public/data/"
 else

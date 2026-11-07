@@ -55,7 +55,7 @@ test("two method boxes: the active one is highlighted and switching changes what
   expect(screen.queryByTestId("when")).toBeNull();
   expect(harness().getAttribute("aria-pressed")).toBe("true");
   expect(current().getAttribute("aria-pressed")).toBe("false");
-  expect(screen.getByText(/start_harness\.sh/)).toBeTruthy();
+  expect(screen.getByText(/scripts\/start\.sh/)).toBeTruthy();
 
   // back to the current model: the chart returns
   fireEvent.click(current());

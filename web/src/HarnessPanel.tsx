@@ -3,7 +3,7 @@ import { Area, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip,
 import { Button, Card, cn } from "@/design-system/the-reading-room-3066fa";
 
 // Panel for the "Harness prediction" box: starts a run of harness/harness.py on THIS computer (through the local control server,
-// scripts/start_harness.sh, reached via the Vite proxy /harness-api), shows its progress and the answer. On a hosted copy of the website
+// scripts/start.sh, reached via the Vite proxy /harness-api), shows its progress and the answer. On a hosted copy of the website
 // (e.g. Vercel) the server does not exist, so the panel only explains how to start it.
 
 const API = "/harness-api";
@@ -107,7 +107,7 @@ function AnswerChart({ points }: { points: Point[] }) {
         <ComposedChart data={points} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
           <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
           <XAxis type="number" dataKey="ms" domain={["dataMin", "dataMax"]} tickFormatter={hhmm} stroke="var(--muted-foreground)" fontSize={12} />
-          <YAxis stroke="var(--muted-foreground)" fontSize={12} unit=" €" width={52} />
+          <YAxis stroke="var(--muted-foreground)" fontSize={12} unit=" €/MWh" width={76} />
           <Tooltip content={ReasonTip} />
           <Area dataKey="base" stackId="b" stroke="none" fill="transparent" legendType="none" isAnimationActive={false} />
           <Area dataKey="width" stackId="b" stroke="none" fill="#46bedc" fillOpacity={0.3} name="Range (low to high)" isAnimationActive={false} />
@@ -172,7 +172,6 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
   const [err, setErr] = useState("");
   const [keys, setKeys] = useState<Keys>({ set: [], missing: [] });
   const [keyValue, setKeyValue] = useState<Record<string, string>>({});
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const nextRef = useRef(0);
   const logRef = useRef<HTMLOListElement>(null);
   const running = job?.status === "running";
@@ -229,6 +228,7 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
   const cols = table ? ["time", "metric", "value", "low", "high", "confidence"].filter((c) => table.header.includes(c)) : [];
   const points = table ? chartPoints(table) : [];
   const steps = parseSteps(lines, job ? job.status : null);
+  const generated = !!(job && job.answer);   // once the answer is in, the progress block folds away to leave room for it
   const text = job && job.answer ? splitAnswer(job.answer).text : "";
 
   const models = info !== null && typeof info === "object" ? info.models : [];
@@ -239,13 +239,13 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
       {info === "offline" && (
         <div className="space-y-2 text-muted-foreground" data-testid="harness-offline">
           <p>The harness runs on your own computer with your local model, so it is not available on this page.</p>
-          <p>To use it: open a terminal in the repo folder, run <code>./scripts/start_harness.sh</code>, then reload this page.</p>
+          <p>To use it: open a terminal in the repo folder, run <code>./scripts/start.sh</code>, then reload this page.</p>
         </div>
       )}
       {info === "outdated" && (
         <div className="space-y-2 text-muted-foreground" data-testid="harness-outdated">
           <p>The harness server that is running is an older version.</p>
-          <p>Stop it (Ctrl+C in its terminal), run <code>./scripts/start_harness.sh</code> again, then reload this page.</p>
+          <p>Stop it (Ctrl+C in its terminal), run <code>./scripts/start.sh</code> again, then reload this page.</p>
         </div>
       )}
       {info && info !== "offline" && info !== "outdated" && (
@@ -261,19 +261,50 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
               </div>
               <p className="text-xs text-muted-foreground" data-testid="harness-about">{info.presets.find((p) => p.id === preset)?.about}</p>
             </div>
-            <div className="grid grid-cols-3 gap-2">
-              <Button size="sm" variant="primary" className={cn(solidBtn, "w-full")} disabled={running || !model || !preset} onClick={start}>Start run</Button>
-              <Button size="sm" variant="outline" className={cn(outlineBtn, "w-full")} disabled={!running} onClick={stop}>Stop</Button>
-              <Button size="sm" variant="outline" className={cn(outlineBtn, "w-full")} aria-haspopup="dialog" onClick={() => setSettingsOpen(true)}>Settings</Button>
+            <details className="group flex flex-col">
+              <summary className="flex cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
+                <span aria-hidden="true" className="text-xs text-navy transition-transform group-open:rotate-90">▶</span>
+                <h3 className="font-display text-base font-bold uppercase tracking-wide">Settings.</h3>
+              </summary>
+              <div className="mt-2 flex flex-col gap-3">
+                <label className="flex flex-col gap-1 text-sm">
+                  <span className="font-medium">Model</span>
+                  <select aria-label="harness model" className="h-9 w-full rounded-md border border-input bg-white px-3 text-sm" value={model} disabled={running} onChange={(e) => setModel(e.target.value)}>
+                    {models.length === 0 && <option value="">No model found: start the Llama app</option>}
+                    {models.map((m) => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </label>
+                {(keys.missing.length > 0 || keys.set.length > 0) && (
+                  <div className="flex flex-col gap-2 text-sm" data-testid="harness-keys">
+                    <span className="font-medium">API keys</span>
+                    <p className="text-muted-foreground">Some data sources need a key. It is saved to key.txt on this computer and not shown again.</p>
+                    {[...keys.missing, ...keys.set].map((n) => (
+                      <div key={n} className="flex items-end gap-2">
+                        <label className="flex min-w-0 flex-1 flex-col gap-1">
+                          <span className="text-xs text-muted-foreground">{n}{keys.set.includes(n) ? " (saved)" : ""}</span>
+                          <input aria-label={`${n} value`} type="password" autoComplete="off" className="h-9 min-w-0 rounded-md border border-input bg-white px-2 text-sm"
+                            value={keyValue[n] ?? ""} onChange={(e) => setKeyValue((v) => ({ ...v, [n]: e.target.value }))} />
+                        </label>
+                        <Button size="sm" variant="outline" className={outlineBtn} disabled={!(keyValue[n] ?? "").trim()} onClick={saveKey(n)}>Save</Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </details>
+            <div className="flex items-center gap-3">
+              <Button size="sm" variant="primary" className={cn(solidBtn, "w-28")} disabled={running || !model || !preset} onClick={start}>Start run</Button>
+              <Button size="sm" variant="outline" className={cn(outlineBtn, "w-20")} disabled={!running} onClick={stop}>Stop</Button>
             </div>
             {err && <p className="text-sm text-destructive" role="alert">{err}</p>}
           </div>
           <div className="flex flex-col gap-3 lg:self-start">
-            <div className="flex flex-col">
-              <div className="flex items-baseline justify-between gap-2">
+            <details open={!generated} className="group flex flex-col">
+              <summary className="flex cursor-pointer list-none items-baseline gap-2 [&::-webkit-details-marker]:hidden">
+                <span aria-hidden="true" className="text-xs text-navy transition-transform group-open:rotate-90">▶</span>
                 <h3 className="font-display text-base font-bold uppercase tracking-wide">Progress.</h3>
-                <span className="text-sm text-muted-foreground" data-testid="harness-state">{stateText(job)}</span>
-              </div>
+                <span className="ml-auto text-sm text-muted-foreground" data-testid="harness-state">{stateText(job)}</span>
+              </summary>
               <ol ref={logRef} data-testid="harness-log" className="mt-2 rounded-lg border border-grey-light bg-white p-3 text-xs">
                 {steps.length === 0 && (
                   <li className="flex items-center gap-2 text-muted-foreground">{running ? <><Spinner /> Starting the model …</> : "Nothing yet."}</li>
@@ -300,7 +331,7 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
                 ))}
                 {(job?.status === "error") && lines.length > 0 && <li className="pt-1 text-xs text-destructive">{lines.filter((l) => !/^\[(turn|tool|result|start|done)/.test(l)).slice(-2).join(" ")}</li>}
               </ol>
-            </div>
+            </details>
             {job && job.answer && (
               <div className="shrink-0">
                 <h3 className="font-display text-base font-bold uppercase tracking-wide">Forecast.</h3>
@@ -318,33 +349,6 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
                 <div className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{text}</div>
               </div>
             )}
-          </div>
-        </div>
-      )}
-      {settingsOpen && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-navy/40 p-4" onClick={() => setSettingsOpen(false)}>
-          <div role="dialog" aria-label="Settings" data-testid="harness-keys" className="flex w-full max-w-sm flex-col gap-4 rounded-lg border border-border bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="font-display text-2xl font-bold uppercase tracking-wide">Settings.</h3>
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="font-medium">Model</span>
-              <select aria-label="harness model" className="h-9 w-full rounded-md border border-input bg-white px-3 text-sm" value={model} disabled={running} onChange={(e) => setModel(e.target.value)}>
-                {models.length === 0 && <option value="">No model found: start the Llama app</option>}
-                {models.map((m) => <option key={m} value={m}>{m}</option>)}
-              </select>
-            </label>
-            <b className="text-sm font-medium">API keys</b>
-            {[...keys.missing, ...keys.set].map((n) => (
-              <div key={n} className="flex items-end gap-2 text-sm">
-                <label className="flex min-w-0 flex-1 flex-col gap-1">
-                  <span className="font-medium">{n}{keys.set.includes(n) ? " (saved)" : ""}</span>
-                  <input aria-label={`${n} value`} type="password" autoComplete="off" className="h-9 w-full min-w-0 rounded-md border border-input bg-white px-3 text-sm"
-                    value={keyValue[n] ?? ""} onChange={(e) => setKeyValue((v) => ({ ...v, [n]: e.target.value }))} />
-                </label>
-                <Button size="sm" variant="outline" className={cn(outlineBtn, "w-20")} disabled={!(keyValue[n] ?? "").trim()} onClick={saveKey(n)}>Save</Button>
-              </div>
-            ))}
-            <p className="text-xs text-muted-foreground">Keys are saved to key.txt on this computer and not shown again.</p>
-            <Button size="sm" variant="outline" className={cn(outlineBtn, "w-full")} onClick={() => setSettingsOpen(false)}>Close</Button>
           </div>
         </div>
       )}

@@ -1,7 +1,7 @@
 """server.py: small local control server for the website's Harness panel.
 
 Starts harness.py as a subprocess for one prompt, reports its progress and answer, and can stop it. Written for this repo (not part of the
-upstream harness). Start it with `./scripts/start_harness.sh` (or `uv run --group harness python harness/server.py`); the website reaches it
+upstream harness). Start it with `./scripts/start.sh` (or `uv run --group harness python harness/server.py`); the website reaches it
 through the Vite dev proxy at /harness-api.
 
 Safety: harness.py lets a model run Python on this computer, so this server
@@ -30,21 +30,23 @@ LLAMA_URL = os.environ.get("LLAMACPP_BASE_URL", "http://localhost:9931/v1")
 # The prompts live here, not in the browser: a run executes model-written Python, so the website can only choose one of these.
 PRESETS = {
     "imbalance": {
-        "label": "Imbalance price, next 12 h",
+        "label": "Imbalance price, 24 h + 10 d",
         "key": "FINGRID_API_KEY",  # the run cannot fetch the imbalance prices without it
-        "about": "Day-ahead price plus the live grid balance (production surplus/deficit, wind output) and the recent spread of real imbalance prices.",
+        "about": "Hourly for the next 24 hours, then one row a day for the next 10 days. Day-ahead price plus the live grid balance (production surplus/deficit, wind output) and the recent spread of real imbalance prices.",
         "prompt": (
-            "Forecast the Finnish imbalance price for every 2 hours of the next 12 hours (6 rows, starting at the next full hour). "
+            "Forecast the Finnish imbalance price hourly for the next 24 hours (24 rows, starting at the next full hour) "
+            "and then daily for the next 10 days (10 rows, one at 12:00 UTC each day, starting tomorrow): 34 rows in all, 24 of them hourly. "
             "The imbalance price follows the live grid balance, so use the live sources, not only history. Follow these steps exactly. "
-            "1) get_data nordpool_price: take the Finland day-ahead spot price for each of those hours (the market's own level). "
+            "1) get_data nordpool_price: take the Finland day-ahead spot price for each of the next 24 hours (the market's own level). "
             "2) get_data fingrid_imbalance_price with start = 5 hours ago and end = now (ISO8601 UTC): you get about 20 quarter-hour prices. "
             "3) get_data fingrid_surplus and get_data fingrid_wind_gen with start = 2 hours ago and end = now: the live production surplus/deficit in MW (negative = Finland is short of power) and the live wind production. "
             "Also get_data fingrid_consumption for the same window (live demand). "
             "4) With run_python read the saved files: pair each recent imbalance price with the spot price of the same quarter-hour and compute spread = imbalance price minus spot, then its median, 10th and 90th percentile. "
             "Then correct the median by the live balance: a production deficit (negative surplus) or falling wind production means the grid needs more power, so raise the spread; a surplus or rising wind means it needs less, so lower it. State the shift you applied and the live values with their timestamps. "
-            "5) Forecast for each hour = spot of that hour + the corrected spread; low = spot + 10th percentile spread; high = spot + 90th percentile spread. "
+            "5) Hourly rows: forecast = spot of that hour + the corrected spread; low = spot + 10th percentile spread; high = spot + 90th percentile spread. "
+            "Daily rows: the day-ahead spot price is only published about 24 hours ahead, so there is no spot level that far out. Give each day as a trend with a range and say in one line that it is a trend, not a priced forecast. "
             "Do NOT extrapolate a trend line. Clamp all values to -50..400 EUR/MWh. "
-            "6) End with the csv block, horizon=12h, metric=imbalance_price, one row per 2 hours. Keep the explanation under 10 lines and name the live source that moved your number. Only use hours later than the current time."
+            "6) End with the csv block, metric=imbalance_price, horizon=24h on the hourly rows and horizon=10d on the daily rows. In drivers give the reason behind each row's number in one line: the source and its live value with the timestamp, the shift you applied and which way it moved the number. Join the parts with ' ; ' and put no comma inside drivers (it is the last csv field). Keep the prose explanation under 10 lines and name the live source that moved your number. Only use hours later than the current time."
         ),
     },
     "dayahead": {

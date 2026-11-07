@@ -266,7 +266,7 @@ export default function App() {
   if (err && method !== "current") return shell(<>{header}<HarnessPanel /></>);
   if (err && variant) return shell(<>{header}{notComputed}</>);
   if (err) return shell(<>{header}
-    <Alert variant="destructive"><div><AlertTitle>Could not load the forecast</AlertTitle>/data/{set}.json ({err}). Run <code>uv run scripts/export_web_data.py</code> first.</div></Alert></>);
+    <Alert variant="destructive"><div><AlertTitle>Could not load the forecast</AlertTitle>/data/{set}.json ({err}). Run <code>./scripts/start.sh --data</code> first.</div></Alert></>);
   if (!ix) return shell(<>{header}<p>Loading…</p></>);
 
   const origin = ix.origins[pos];
@@ -398,7 +398,7 @@ export default function App() {
             <ComposedChart data={chart} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
               <CartesianGrid stroke={C.grid} strokeDasharray="3 3" vertical={false} />
               <XAxis type="number" dataKey="ms" domain={[T - 3 * HOUR, T + 9.75 * HOUR]} allowDataOverflow ticks={ticks} tickFormatter={hhmm} stroke={C.axis} fontSize={12} />
-              <YAxis domain={yAxis ? [yAxis.lo, yAxis.hi] : ["auto", "auto"]} ticks={yAxis ? yAxis.ticks : undefined} allowDataOverflow stroke={C.axis} fontSize={12} unit=" €" width={56} />
+              <YAxis domain={yAxis ? [yAxis.lo, yAxis.hi] : ["auto", "auto"]} ticks={yAxis ? yAxis.ticks : undefined} allowDataOverflow stroke={C.axis} fontSize={12} unit=" €/MWh" width={80} />
               <Tooltip content={<ChartTip />} />
               <Area dataKey="prevBase" stackId="c" stroke="none" fill="transparent" legendType="none" isAnimationActive={false} />
               <Area dataKey="prevWidth" stackId="c" stroke="none" fill={C.earlier} fillOpacity={0.15} legendType="none" name="Earlier range" isAnimationActive={false} />

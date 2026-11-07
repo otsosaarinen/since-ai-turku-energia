@@ -135,7 +135,7 @@ dd/mm/yyyy, and keeps its text short (no "i" tooltips; the chart legend explains
   Residual-load features combine all three forecasts, so they are removed whenever any switch is off. Real cloud or sunlight data is not in the model.
 
 **Where the website's data comes from.** `web/public/data/` (git-ignored: forecasts and real imbalance prices, no spot prices) is created by
-`uv run scripts/export_web_data.py` from `outputs/` on the model owner's computer (`start_web.sh` calls it automatically), or copied from them
+`./scripts/start.sh --data` from `outputs/` on the model owner's computer (`start_web.sh` calls it automatically), or copied from them
 (Part A, step 3). `app/app.py` is an older, optional Streamlit viewer (`uv run --group app streamlit run app/app.py`).
 
 ## Put the website online for a demo (optional)
@@ -162,10 +162,10 @@ HARNESS_PROVIDER=llamacpp LLAMACPP_BASE_URL=http://localhost:9931/v1 \
 ```
 **Start and watch runs from the website.** Start the local control server in one terminal and the website in another:
 ```bash
-./scripts/start_harness.sh     # control server on 127.0.0.1:8765; needs the local model server (Llama app, port 9931)
+./scripts/start.sh             # control server on 127.0.0.1:8765; needs the local model server (Llama app, port 9931)
 ./scripts/start_web.sh         # the website; pick "Harness prediction", choose a model, press Start run
 ```
-The panel has a short intro and two fixed forecast choices (imbalance price next 12 h; day-ahead price next 12 h) with a one-line description under the buttons. A **Settings** button opens a pop-up with the model picker (only the small gemma-4 E4B model; the server filters the Llama app's model list; `HARNESS_MODEL_FILTER=E4B,12B ./scripts/start_harness.sh` offers more) and the API keys. The elapsed time / "Done in …" sits next to the "Progress." heading; the prompt text cannot be edited on the page and lives in `harness/server.py` (`PRESETS`), which accepts only a preset name,
+The panel has a short intro and two fixed forecast choices (imbalance price next 12 h; day-ahead price next 12 h) with a one-line description under the buttons. A **Settings** button opens a pop-up with the model picker (only the small gemma-4 E4B model; the server filters the Llama app's model list; `HARNESS_MODEL_FILTER=E4B,12B ./scripts/start.sh` offers more) and the API keys. The elapsed time / "Done in …" sits next to the "Progress." heading; the prompt text cannot be edited on the page and lives in `harness/server.py` (`PRESETS`), which accepts only a preset name,
 shows the run live as a short list of steps (one per call to the model, named by what it did, e.g. "Step 2: Fetching nordpool_price"; small compact text, finished steps have a check mark, the current one a spinner, the list has no scroll box of its own: the Harness page grows and scrolls as a whole, a failed fetch shows its error under the step, and the model's reasoning is behind a "Reasoning" fold-out under the step, shown in full, from the `[think]` progress line) and, when finished, the answer (the table is found even if the model forgets the code fence) as a chart (orange forecast line, blue low-to-high range) in Finnish time; the table is shown instead when the answer has too few points for a chart. `[turn k/10]` counts calls to the model; 10 is only the maximum, a run ends when the model decides to answer. The server tells the model the current UTC time and to use ISO timestamps (small models otherwise send words like "5 hours ago" to the data sources). It works only on your own computer with the Vite dev server
 (the proxy `/harness-api` in `web/vite.config.ts`); on a hosted copy (Vercel) it only explains how to start the server. One run at a time, stopped after 20 minutes, **Stop** ends it.
 The server (`harness/server.py`, written for this repo) listens on 127.0.0.1 only and refuses any request whose Host or Origin is not localhost, because a run executes model-written Python.
@@ -186,6 +186,6 @@ removes the harness packages again; run `uv sync --group harness` to get them ba
 - `src/availability.py` availability filter (fast index, same result as the organiser's `rows_available_at`)
 - `src/features.py` features per (origin, step) and the input groups the viewer can switch off | `src/train.py`, `src/predict.py` models |
   `src/evaluate.py` validator and scorer wrappers | `src/exports.py` viewer tables | `src/baseline.py` organiser baseline
-- `scripts/` `run_validation.py`, `run_rolling.py`, `run_final.py`, `run_variants.py`, `exp_postproc.py`, `export_web_data.py`, `start_web.sh`, `start_harness.sh`, `show_origin.py`,
+- `scripts/` `run_validation.py`, `run_rolling.py`, `run_final.py`, `run_variants.py`, `exp_postproc.py`, `start_web.sh`, `start.sh`, `show_origin.py`,
   `train_cpu.sbatch` (LUMI Slurm job for the final run; untested, LUMI is optional because local training takes about a minute)
 - `harness/` the harness code (second method) and `server.py`, the control server behind the website panel | `web/` React viewer (`web/src/design-system/` = Turku Energia design components) | `tests/` Python tests | `configs/default.yaml` all model settings
