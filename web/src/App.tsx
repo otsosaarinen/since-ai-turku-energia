@@ -1,5 +1,6 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Alert, AlertTitle, Button, Card, Hills, cn } from "@/design-system/the-reading-room-3066fa";
+import HarnessPanel from "./HarnessPanel";
 import type { Cell, ChartPoint, MethodKey, NumKey, Payload, Row, SetKey, ToggleId, VariantIndex } from "./types";
 import { Area, CartesianGrid, ComposedChart, Legend, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
@@ -13,7 +14,7 @@ import { Area, CartesianGrid, ComposedChart, Legend, Line, ReferenceLine, Respon
 // appear in web/public/data/, the box switches the chart to them automatically.
 const METHODS: Record<MethodKey, { title: string; sub: string; files: Record<SetKey, string> }> = {
   current: { title: "Machine-learning model", sub: "Gradient-boosted trees (LightGBM): quantiles, direction and spikes.", files: { validation: "validation", final: "final" } },
-  harness: { title: "Harness prediction", sub: "Second forecasting method (harness). Not connected yet.", files: { validation: "harness_validation", final: "harness_final" } },
+  harness: { title: "Harness prediction", sub: "Second forecasting method (harness). Runs on your computer.", files: { validation: "harness_validation", final: "harness_final" } },
 };
 // Input toggles of the current model. Each combination is a separately trained model variant computed by scripts/run_variants.py;
 // the key has one digit per toggle (1 = on, 0 = off), "111" is the normal model served by validation.json / final.json.
@@ -258,13 +259,10 @@ export default function App() {
       </div>
     </Card>
   );
-  const notConnected = message(`${METHODS[method].title} is not connected yet`, <p>
-    Its forecasts have not been added to the repo. When they are, put them in <code>web/public/data/{METHODS[method].files[set]}.json</code>
-    {" "}(same format as <code>{METHODS.current.files[set]}.json</code>) and reload this page. The chart then appears here automatically.</p>);
   const notComputed = message("This combination has not been computed yet", <div className="space-y-3">
     <p>Run <code>uv run scripts/run_variants.py</code> to create the forecasts for every on/off combination of the inputs, then reload.</p>
     <Button size="sm" variant="outline" className={outlineBtn} onClick={() => setOn({ solar: true, wind: true, consumption: true })}>Switch all inputs on</Button></div>);
-  if (err && method !== "current") return shell(<>{header}{notConnected}</>);
+  if (err && method !== "current") return shell(<>{header}<HarnessPanel /></>);
   if (err && variant) return shell(<>{header}{notComputed}</>);
   if (err) return shell(<>{header}
     <Alert variant="destructive"><div><AlertTitle>Could not load the forecast</AlertTitle>/data/{set}.json ({err}). Run <code>uv run scripts/export_web_data.py</code> first.</div></Alert></>);

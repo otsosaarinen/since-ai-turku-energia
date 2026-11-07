@@ -47,7 +47,7 @@ npm run dev
 Next time you only need `cd web` and `npm run dev`. On macOS and Linux, `./scripts/start_web.sh` from the repo folder does the same
 (and on the model owner's computer it also rebuilds the website's data from `outputs/` first). It does not work on Windows.
 
-Other website commands (run inside the `web/` folder): `npm test` (9 tests), `npm run typecheck` (TypeScript check), `npm run build` (production build).
+Other website commands (run inside the `web/` folder): `npm test` (13 tests), `npm run typecheck` (TypeScript check), `npm run build` (production build).
 What the page shows is described under "What the website shows" further down.
 
 ## Part B: train the model yourself
@@ -75,7 +75,7 @@ Never commit `data/`, `starter_package_v1/` or `outputs/` (they are git-ignored;
 **3. Install**
 ```bash
 uv sync
-uv run pytest -q                       # 23 tests: availability filter, leakage checks and input groups (about 20 s)
+uv run pytest -q                       # 30 tests: availability filter, leakage checks, input groups, harness server (about 20 s)
 ```
 
 **4. Reproduce the organisers' baseline** (once; the validation step compares against it)
@@ -159,6 +159,17 @@ one uv project: `uv sync --group harness` installs its packages (openai, scipy, 
 HARNESS_PROVIDER=llamacpp LLAMACPP_BASE_URL=http://localhost:9931/v1 \
   uv run --group harness python harness/harness.py -m "ggml-org/gemma-4-E4B-it-GGUF:Q8_0" -q "what is 17*23? use python"
 ```
+**Start and watch runs from the website.** Start the local control server in one terminal and the website in another:
+```bash
+./scripts/start_harness.sh     # control server on 127.0.0.1:8765; needs the local model server (Llama app, port 9931)
+./scripts/start_web.sh         # the website; pick "Harness prediction", choose a model, press Start run
+```
+The panel offers only the small gemma-4 E4B model (the server filters the Llama app's model list; `HARNESS_MODEL_FILTER=E4B,12B ./scripts/start_harness.sh` offers more), has two ready-made prompts (imbalance price next 12 h; day-ahead price next 12 h) and a text box for your own,
+shows each step live (turn, tool call, result size) and, when finished, the answer as a chart (orange forecast line, blue low-to-high range) and a table in Finnish time. `[turn k/10]` counts calls to the model; 10 is only the maximum, a run ends when the model decides to answer. The server tells the model the current UTC time and to use ISO timestamps (small models otherwise send words like "5 hours ago" to the data sources). It works only on your own computer with the Vite dev server
+(the proxy `/harness-api` in `web/vite.config.ts`); on a hosted copy (Vercel) it only explains how to start the server. One run at a time, stopped after 20 minutes, **Stop** ends it.
+The server (`harness/server.py`, written for this repo) listens on 127.0.0.1 only and refuses any request whose Host or Origin is not localhost, because a run executes model-written Python.
+On the command line the same progress lines appear with `--progress` (added to `harness/harness.py`).
+
 **Fingrid key:** put it in `harness/key.txt` as a line `FINGRID_API_KEY=...` (git-ignored); without it the `fingrid_*` sources fail. Example question that uses it (run from the repo folder):
 ```bash
 HARNESS_PROVIDER=llamacpp LLAMACPP_BASE_URL=http://localhost:9931/v1 \
@@ -173,6 +184,6 @@ removes the harness packages again; run `uv sync --group harness` to get them ba
 - `src/availability.py` availability filter (fast index, same result as the organiser's `rows_available_at`)
 - `src/features.py` features per (origin, step) and the input groups the viewer can switch off | `src/train.py`, `src/predict.py` models |
   `src/evaluate.py` validator and scorer wrappers | `src/exports.py` viewer tables | `src/baseline.py` organiser baseline
-- `scripts/` `run_validation.py`, `run_rolling.py`, `run_final.py`, `run_variants.py`, `exp_postproc.py`, `export_web_data.py`, `start_web.sh`, `show_origin.py`,
+- `scripts/` `run_validation.py`, `run_rolling.py`, `run_final.py`, `run_variants.py`, `exp_postproc.py`, `export_web_data.py`, `start_web.sh`, `start_harness.sh`, `show_origin.py`,
   `train_cpu.sbatch` (LUMI Slurm job for the final run; untested, LUMI is optional because local training takes about a minute)
-- `harness/` the separate harness code (second method) | `web/` React viewer (`web/src/design-system/` = Turku Energia design components) | `tests/` Python tests | `configs/default.yaml` all model settings
+- `harness/` the harness code (second method) and `server.py`, the control server behind the website panel | `web/` React viewer (`web/src/design-system/` = Turku Energia design components) | `tests/` Python tests | `configs/default.yaml` all model settings

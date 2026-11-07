@@ -29,14 +29,14 @@ decisions. SOURCES.md = data, services, components, licences. configs/default.ya
 - Short answers; state what was done and what is uncommitted. Commits/pushes only on request (he pushes himself or says so).
 
 ## Commands (uv project: `uv sync`, then `uv run ...`; macOS needed `brew install libomp`, done)
-- `uv run pytest -q` (23 tests) and `cd web && npx vitest run` (9 tests).
+- `uv run pytest -q` (30 tests) and `cd web && npx vitest run` (13 tests).
 - `uv run scripts/run_validation.py [--tag X] [--set model.key=value]` -> validation month, scored vs the organisers' baseline, outputs/X/.
 - `uv run scripts/run_rolling.py [--tag X] [--ref TAG] [--set key=value ...]` -> 8 weekly windows; judge model changes here.
 - `uv run scripts/run_final.py` -> outputs/final/forecast_backtest.csv and runs the organiser validator.
 - `uv run scripts/exp_postproc.py` -> post-processing experiments on the 8 windows (section 7 of EXPERIMENTS.md).
 - `uv run scripts/run_variants.py` -> the 7 model variants behind the viewer's input switches (about 12 min).
 - Organiser tools: `uv run python -I starter_package_v1/{validate_submission,score,make_templates}.py`.
-- Viewer: `./scripts/start_web.sh` (http://localhost:5173). `scripts/export_web_data.py` writes web/public/data/{validation,final}.json from outputs/.
+- Harness panel server: `./scripts/start_harness.sh` (needs the Llama app). Viewer: `./scripts/start_web.sh` (http://localhost:5173). `scripts/export_web_data.py` writes web/public/data/{validation,final}.json from outputs/.
 
 ## Model (details in REPORT.md)
 Target = imbalance minus spot of the target quarter-hour. Six LightGBM models: quantile p10/p50/p90, 3-class direction, two spike models (+-50 EUR/MWh
@@ -71,7 +71,9 @@ tool executes model-written code with full user access; prompt injection from fe
 (`uv run --group harness python harness.py ...`, group `harness` in pyproject.toml). `harness/key.txt` and `harness/reports/` are git-ignored. Do not edit its code without noting it
 in harness/README.md. It is a live 24 h / 7 d analyst, not a backtest: its csv (horizon,time,area,metric,value,unit,low,high,confidence,drivers) cannot fill the website's harness JSON
 without a converter and a decision on what to show. The Llama app (localhost:9931, OpenAI-style API) needs context >= 16k for it; the harness picks the FIRST listed model if `-m`
-is missing (that is the tiny Qwen). Tested 7 Nov: works with gemma-4 E4B Q8 (32k ctx) via the Llama app; the user's Fingrid key is in harness/key.txt (git-ignored; never print or commit it). Forecast quality is weak (small model, naive line extrapolation); the harness is a live demo, the LightGBM model stays the entry. Its dependencies are the `harness` group in pyproject.toml (the upstream requirements.txt was not copied).
+is missing (that is the tiny Qwen). Website panel (web/src/HarnessPanel.tsx, shown when the harness box has no forecast JSON): talks to harness/server.py (our own control server, 127.0.0.1:8765, started with
+scripts/start_harness.sh) through the Vite proxy `/harness-api`; model list from the Llama app filtered to E4B (env HARNESS_MODEL_FILTER), two preset prompts, live progress lines (harness.py `--progress`, our small edit), answer table. The server adds the current UTC time and an ISO-timestamp instruction to every prompt (`with_context`). The answer area draws a chart (Recharts) and a table; Unix-second times are converted to Finnish time. Host and Origin
+checks keep other websites out (tests in tests/test_harness_server.py). Not available on Vercel (it says how to start the server). Upstream files were reformatted by the editor (ruff style, no logic change). Tested 7 Nov: works with gemma-4 E4B Q8 (32k ctx) via the Llama app; the user's Fingrid key is in harness/key.txt (git-ignored; never print or commit it). Forecast quality is weak (small model, naive line extrapolation); the harness is a live demo, the LightGBM model stays the entry. Its dependencies are the `harness` group in pyproject.toml (the upstream requirements.txt was not copied).
 
 ## Decisions and open questions
 - Extra Fingrid history before 1 Jun (to "teach winter"): the user has a Fingrid API key (not stored; if used put it in `.secrets/fingrid.env`, git-ignored)

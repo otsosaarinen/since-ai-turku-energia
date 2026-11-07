@@ -51,13 +51,13 @@ test("two method boxes: the active one is highlighted and switching changes what
   expect(current().getAttribute("aria-pressed")).toBe("true");
   expect(harness().getAttribute("aria-pressed")).toBe("false");
 
-  // harness has no forecasts yet: placeholder instead of the chart, boxes stay
+  // harness has no forecast files yet: the harness panel (here: server not running) instead of the chart, boxes stay
   fireEvent.click(harness());
-  await waitFor(() => expect(screen.getByText(/is not connected yet/)).toBeTruthy(), { timeout: 15000 });
+  await waitFor(() => expect(screen.getByTestId("harness-offline")).toBeTruthy(), { timeout: 15000 });
   expect(screen.queryByTestId("when")).toBeNull();
   expect(harness().getAttribute("aria-pressed")).toBe("true");
   expect(current().getAttribute("aria-pressed")).toBe("false");
-  expect(screen.getByText(/harness_validation\.json/)).toBeTruthy();
+  expect(screen.getByText(/start_harness\.sh/)).toBeTruthy();
 
   // back to the current model: the chart returns
   fireEvent.click(current());
@@ -67,7 +67,7 @@ test("two method boxes: the active one is highlighted and switching changes what
   harnessReady = true;
   fireEvent.click(harness());
   await waitFor(() => expect(screen.getByTestId("when")).toBeTruthy(), { timeout: 15000 });
-  expect(screen.queryByText(/is not connected yet/)).toBeNull();
+  expect(screen.queryByTestId("harness-offline")).toBeNull();
   expect(harness().getAttribute("aria-pressed")).toBe("true");
 });
 

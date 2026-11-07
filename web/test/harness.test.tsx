@@ -1,0 +1,74 @@
+import React from "react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, expect, test, vi } from "vitest";
+import HarnessPanel, { chartPoints, fiTime, parseCsvBlock, timeMs } from "../src/HarnessPanel";
+
+// give the chart a real size so Recharts draws it in jsdom
+vi.mock("recharts", async (orig) => {
+  const m = (await orig()) as Record<string, unknown>;
+  return { ...m, ResponsiveContainer: ({ children }: { children: React.ReactElement }) => React.cloneElement(children, { width: 600, height: 200 }) };
+});
+
+afterEach(cleanup);
+
+const answer = 'Short explanation.\n\n```csv\nhorizon,time,area,metric,value,unit,low,high,confidence,drivers\n24h,2026-11-07T13:00:00+00:00,FI,imbalance_price,42.5,EUR/MWh,10,90,Low,"nordpool_price, fingrid"\n24h,1794002400,FI,imbalance_price,50,EUR/MWh,20,80,Low,x\n```\n';
+
+test("parseCsvBlock reads the table, including quoted commas", () => {
+  const t = parseCsvBlock(answer)!;
+  expect(t.header[1]).toBe("time");
+  expect(t.rows).toHaveLength(2);
+  expect(t.rows[0][9]).toBe("nordpool_price, fingrid");
+  expect(parseCsvBlock("no table here")).toBeNull();
+});
+
+test("the panel says how to start the server when it is not running", async () => {
+  global.fetch = vi.fn(async () => ({ ok: false, status: 404, json: async () => ({}) })) as unknown as typeof fetch;
+  render(<HarnessPanel pollMs={10} />);
+  await waitFor(() => expect(screen.getByTestId("harness-offline")).toBeTruthy());
+  expect(screen.getByText(/start_harness\.sh/)).toBeTruthy();
+});
+
+test("start a run, watch the progress, see the answer table", async () => {
+  let polls = 0;
+  const calls: { url: string; body?: string }[] = [];
+  const base = { id: "a1", model: "ggml-org/gemma-4-E4B-it-GGUF:Q8_0", prompt: "p" };
+  global.fetch = vi.fn(async (url: string, init?: RequestInit) => {
+    calls.push({ url, body: init?.body as string | undefined });
+    const ok = (data: unknown) => ({ ok: true, status: 200, json: async () => data });
+    if (url.endsWith("/info")) return ok({ llama_url: "x", models: ["ggml-org/gemma-4-12B-it-GGUF:Q8_0", "ggml-org/gemma-4-E4B-it-GGUF:Q8_0"], max_prompt: 4000 });
+    if (url.endsWith("/job")) return ok({ job: null });
+    if (url.endsWith("/run")) return ok({ job: { ...base, status: "running", elapsed: 0, lines: ["[start] model"], next: 1, answer: "" } });
+    if (url.includes("/job?since=")) {
+      polls++;
+      if (polls < 2) return ok({ job: { ...base, status: "running", elapsed: 3, lines: ["[tool] get_data nordpool_price {}"], next: 2, answer: "" } });
+      return ok({ job: { ...base, status: "done", elapsed: 9, lines: ["[done] final answer received"], next: 3, answer } });
+    }
+    return ok({});
+  }) as unknown as typeof fetch;
+
+  render(<HarnessPanel pollMs={10} />);
+  const select = (await screen.findByLabelText("harness model")) as HTMLSelectElement;
+  await waitFor(() => expect(select.value).toMatch(/E4B/));                       // the small fast model is the default
+  fireEvent.click(screen.getByRole("button", { name: "Start run" }));
+  await waitFor(() => expect(screen.getByTestId("harness-log").textContent).toMatch(/get_data nordpool_price/));
+  await waitFor(() => expect(screen.getByTestId("harness-table")).toBeTruthy());
+  expect(screen.getByTestId("harness-log").textContent).toMatch(/\[start\].*\[tool\].*\[done\]/);   // lines are appended in order
+  expect(screen.getByTestId("harness-state").textContent).toMatch(/Done in 9 s/);
+  expect(screen.getByTestId("harness-table").textContent).toMatch(/07\/11\/2026 15:00/);          // shown in Finnish time
+  expect(screen.getByTestId("harness-chart").querySelectorAll(".recharts-line").length).toBeGreaterThan(0);   // and drawn as a chart
+  const run = calls.find((c) => c.url.endsWith("/run"))!;
+  expect(JSON.parse(run.body!).model).toMatch(/E4B/);
+  expect(JSON.parse(run.body!).prompt).toMatch(/nordpool_price/);
+});
+
+test("times from the model: ISO, no zone, Unix seconds; chart points sorted with a range", () => {
+  expect(timeMs("2026-11-07T13:00:00Z")).toBe(Date.UTC(2026, 10, 7, 13));
+  expect(timeMs("2026-11-07T13:00:00")).toBe(Date.UTC(2026, 10, 7, 13));          // no zone = UTC
+  expect(timeMs("1793998800")).toBe(1793998800000);                              // Unix seconds
+  expect(fiTime("2026-11-07T13:00:00Z")).toBe("07/11/2026 15:00");               // Finnish time
+  const pts = chartPoints(parseCsvBlock(answer)!);
+  expect(pts).toHaveLength(2);
+  expect(pts[0].ms).toBeLessThan(pts[1].ms);
+  expect(pts[0]).toMatchObject({ value: 50, base: 20, width: 60 });            // the Unix-seconds row is earlier
+  expect(pts[1]).toMatchObject({ value: 42.5, base: 10, width: 80 });
+});

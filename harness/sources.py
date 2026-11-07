@@ -3,8 +3,12 @@ sources.py — Nord Pool scope, named live data sources, and the fetch tools.
 harness.py imports these; keep edits to data sources in this file.
 """
 
-import json, os, time, urllib.error, urllib.request
-from datetime import datetime, timedelta, timezone
+import json
+import os
+import time
+import urllib.error
+import urllib.request
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -16,205 +20,225 @@ if _keyfile.exists():
         _line = _line.strip()
         if _line and not _line.startswith("#"):
             _k, _sep, _v = _line.partition("=")
-            os.environ.setdefault(_k if _sep else "FINGRID_API_KEY", (_v if _sep else _k).strip())
+            os.environ.setdefault(
+                _k if _sep else "FINGRID_API_KEY", (_v if _sep else _k).strip()
+            )
 
-MAX_BYTES   = 1_000_000             # fetch_url read cap
-MAX_CHARS   = 20_000                # fetch_url reply cap
+MAX_BYTES = 1_000_000  # fetch_url read cap
+MAX_CHARS = 20_000  # fetch_url reply cap
 
 # ─── Nord Pool scope ──────────────────────────────────────
 # Bidding zones of the Nord Pool market. Data about anything else is out of scope.
-AREAS = ("FI", "SE1", "SE2", "SE3", "SE4", "NO1", "NO2", "NO3", "NO4", "NO5",
-         "DK1", "DK2", "EE", "LV", "LT")
+AREAS = (
+    "FI",
+    "SE1",
+    "SE2",
+    "SE3",
+    "SE4",
+    "NO1",
+    "NO2",
+    "NO3",
+    "NO4",
+    "NO5",
+    "DK1",
+    "DK2",
+    "EE",
+    "LV",
+    "LT",
+)
 
 # Named sources the model may pull from. {placeholders} are filled by get_data().
 # Everything here is Nord Pool relevant; hosts outside the set are refused.
 SOURCES = {
-    "nordpool_price": {          # day-ahead spot price, every area, keyless
+    "nordpool_price": {  # day-ahead spot price, every area, keyless
         "url": "https://dashboard.elering.ee/api/nps/price",
         "params": "start,end = ISO8601 to window a past day (optional)",
         "note": "same Nord Pool spot for all areas; Fingrid sells no price in open data",
     },
-    "spot_price_fi": {           # Finland current spot, keyless
+    "spot_price_fi": {  # Finland current spot, keyless
         "url": "https://api.spot-hinta.fi/JustNow",
         "params": "",
     },
     # Statnett (Norway's TSO) open REST, keyless — Nordic-wide, not just NO.
-    "statnett_overview": {       # latest Nordic production/consumption per area by source, MW
+    "statnett_overview": {  # latest Nordic production/consumption per area by source, MW
         "url": "https://driftsdata.statnett.no/restapi/ProductionConsumption/GetLatestDetailedOverview",
         "params": "",
         "note": "one call covers NO1-5 + SE + FI + DK by hydro/wind/nuclear/thermal + net exchange",
     },
-    "statnett_prodcons": {       # Nordic production/consumption daily series, MW
+    "statnett_prodcons": {  # Nordic production/consumption daily series, MW
         "url": "https://driftsdata.statnett.no/restapi/ProductionConsumption/GetData",
         "params": "From,To = YYYY-MM-DD (optional, default last 7 days; append via fetch_url)",
     },
-    "statnett_flow": {           # Nordic net physical exchange daily series, MW
+    "statnett_flow": {  # Nordic net physical exchange daily series, MW
         "url": "https://driftsdata.statnett.no/restapi/PhysicalFlow/GetData",
         "params": "From = YYYY-MM-DD (optional, default last 7 days; append via fetch_url)",
     },
-    "statnett_power_situation": {# Statnett's grid-capacity assessment per NO price area
+    "statnett_power_situation": {  # Statnett's grid-capacity assessment per NO price area
         "url": "https://driftsdata.statnett.no/restapi/ElspotPowerSituation/GetPowerSituations",
         "params": "",
     },
-    "statnett_reservoir": {      # Norwegian hydro reservoir fill % per NO area + total, weekly
+    "statnett_reservoir": {  # Norwegian hydro reservoir fill % per NO area + total, weekly
         "url": "https://driftsdata.statnett.no/restapi/Reservoir/LastWeekData/{weeks}",
         "params": "weeks (optional, default 3; up to 52)",
         "defaults": {"weeks": 3},
         "note": "the multi-week hydro/price driver for the Norwegian zones",
     },
-    "cloud_wind": {              # ICOWL weather+wind source (open-meteo): cloud cover, wind
+    "cloud_wind": {  # ICOWL weather+wind source (open-meteo): cloud cover, wind
         "url": "https://api.open-meteo.com/v1/forecast"
-               "?latitude={lat}&longitude={lon}"
-               "&current=cloud_cover,wind_speed_10m,wind_direction_10m,wind_gusts_10m,temperature_2m"
-               "&hourly=cloud_cover,wind_speed_10m,wind_gusts_10m,temperature_2m"
-               "&forecast_days=8&wind_speed_unit=ms&timezone=UTC",
+        "?latitude={lat}&longitude={lon}"
+        "&current=cloud_cover,wind_speed_10m,wind_direction_10m,wind_gusts_10m,temperature_2m"
+        "&hourly=cloud_cover,wind_speed_10m,wind_gusts_10m,temperature_2m"
+        "&forecast_days=8&wind_speed_unit=ms&timezone=UTC",
         "params": "lat, lon (required)",
         "note": "current + hourly out to 8 days, the forward weather for wind prediction",
     },
-    "sun_position": {            # solar irradiance + daylight window, for solar productivity (open-meteo)
+    "sun_position": {  # solar irradiance + daylight window, for solar productivity (open-meteo)
         "url": "https://api.open-meteo.com/v1/forecast"
-               "?latitude={lat}&longitude={lon}"
-               "&current=shortwave_radiation,direct_normal_irradiance,diffuse_radiation,terrestrial_radiation"
-               "&hourly=shortwave_radiation,direct_normal_irradiance,cloud_cover"
-               "&daily=sunrise,sunset,daylight_duration,sunshine_duration"
-               "&forecast_days=8&timezone=UTC",
+        "?latitude={lat}&longitude={lon}"
+        "&current=shortwave_radiation,direct_normal_irradiance,diffuse_radiation,terrestrial_radiation"
+        "&hourly=shortwave_radiation,direct_normal_irradiance,cloud_cover"
+        "&daily=sunrise,sunset,daylight_duration,sunshine_duration"
+        "&forecast_days=8&timezone=UTC",
         "params": "lat, lon (required)",
         "note": "W/m2 GHI/DNI + sunrise/sunset, current and hourly to 8 days; "
-                "max potential PV ~ GHI * panel area * efficiency",
+        "max potential PV ~ GHI * panel area * efficiency",
     },
-    "warnings_areal": {          # areal disaster warnings, Nordics (MET Norway)
+    "warnings_areal": {  # areal disaster warnings, Nordics (MET Norway)
         "url": "https://api.met.no/weatherapi/metalerts/2.0/current.json?lat={lat}&lon={lon}",
         "params": "lat, lon (required)",
     },
-    "warnings_global": {         # ICOWL hazard feed (GDACS)
+    "warnings_global": {  # ICOWL hazard feed (GDACS)
         "url": "https://www.gdacs.org/gdacsapi/api/events/geteventlist/MAP?eventtype={eventtype}",
         "params": "eventtype (optional)",
         "defaults": {"eventtype": "WF"},
     },
-    "outages_caruna": {          # Caruna DSO live network outages, keyless
+    "outages_caruna": {  # Caruna DSO live network outages, keyless
         "url": "https://plus.caruna.fi/current-outages.json",
         "params": "",
     },
-    "outages_finland_dso": {     # every Finnish DSO live outage summary, keyless
+    "outages_finland_dso": {  # every Finnish DSO live outage summary, keyless
         "url": "https://sqtb-api.azureedge.net/outagemap/tailored/summary/",
         "params": "",
-        "hdr": {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-                             "(KHTML, like Gecko) Chrome/131.0 Safari/537.36",
-                "Origin": "https://sahkotutka.fi", "Referer": "https://sahkotutka.fi/"},
+        "hdr": {
+            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/131.0 Safari/537.36",
+            "Origin": "https://sahkotutka.fi",
+            "Referer": "https://sahkotutka.fi/",
+        },
         "note": "serves 403 without an Origin header",
     },
-    "transfer_capacity": {       # regional transfer capacity, day-ahead (ENTSO-E docType A61)
+    "transfer_capacity": {  # regional transfer capacity, day-ahead (ENTSO-E docType A61)
         "url": "https://web-api.tp.entsoe.eu/api?securityToken={token}"
-               "&documentType=A61&contract_MarketAgreement.Type=A01"
-               "&in_Domain={in_domain}&out_Domain={out_domain}"
-               "&periodStart={start}&periodEnd={end}",
+        "&documentType=A61&contract_MarketAgreement.Type=A01"
+        "&in_Domain={in_domain}&out_Domain={out_domain}"
+        "&periodStart={start}&periodEnd={end}",
         "params": "in_domain, out_domain = EIC codes (FI 10YFI-1--------U), "
-                  "start, end = YYYYMMDDHHMM (required)",
+        "start, end = YYYYMMDDHHMM (required)",
         "key": "ENTSOE_API_KEY",
     },
-    "fingrid_flow": {            # FI↔SE1 tie line, real-time MW (positive = export)
+    "fingrid_flow": {  # FI↔SE1 tie line, real-time MW (positive = export)
         "url": "https://data.fingrid.fi/api/datasets/87/data"
-               "?startTime={start}&endTime={end}&pageSize=20",
+        "?startTime={start}&endTime={end}&pageSize=20",
         "params": "start, end = ISO8601 (default: last 2 hours)",
         "key": "FINGRID_API_KEY",
         "headers": {"x-api-key": "FINGRID_API_KEY"},
     },
-    "fingrid_net_import": {      # Finland net import/export, real-time MW
+    "fingrid_net_import": {  # Finland net import/export, real-time MW
         "url": "https://data.fingrid.fi/api/datasets/194/data"
-               "?startTime={start}&endTime={end}&pageSize=20",
+        "?startTime={start}&endTime={end}&pageSize=20",
         "params": "start, end = ISO8601 (default: last 2 hours)",
         "key": "FINGRID_API_KEY",
         "headers": {"x-api-key": "FINGRID_API_KEY"},
     },
-    "fingrid_frequency": {       # system frequency, real-time Hz
+    "fingrid_frequency": {  # system frequency, real-time Hz
         "url": "https://data.fingrid.fi/api/datasets/177/data"
-               "?startTime={start}&endTime={end}&pageSize=20",
+        "?startTime={start}&endTime={end}&pageSize=20",
         "params": "start, end = ISO8601 (default: last 2 hours)",
         "key": "FINGRID_API_KEY",
         "headers": {"x-api-key": "FINGRID_API_KEY"},
     },
-    "fingrid_consumption": {     # Finland consumption, real-time MW
+    "fingrid_consumption": {  # Finland consumption, real-time MW
         "url": "https://data.fingrid.fi/api/datasets/193/data"
-               "?startTime={start}&endTime={end}&pageSize=20",
+        "?startTime={start}&endTime={end}&pageSize=20",
         "params": "start, end = ISO8601 (default: last 2 hours)",
         "key": "FINGRID_API_KEY",
         "headers": {"x-api-key": "FINGRID_API_KEY"},
     },
     "fingrid_solar_capacity": {  # installed solar capacity behind the forecast, MW
         "url": "https://data.fingrid.fi/api/datasets/267/data"
-               "?startTime={start}&endTime={end}&pageSize=20",
+        "?startTime={start}&endTime={end}&pageSize=20",
         "params": "start, end = ISO8601 (default: last 6 hours)",
         "key": "FINGRID_API_KEY",
         "headers": {"x-api-key": "FINGRID_API_KEY"},
-        "back": 6,               # hourly series published with a lag
+        "back": 6,  # hourly series published with a lag
     },
-    "fingrid_wind_gen": {        # Finland wind production, real-time MW (3 min)
+    "fingrid_wind_gen": {  # Finland wind production, real-time MW (3 min)
         "url": "https://data.fingrid.fi/api/datasets/181/data"
-               "?startTime={start}&endTime={end}&pageSize=20",
+        "?startTime={start}&endTime={end}&pageSize=20",
         "params": "start, end = ISO8601 (default: last 2 hours)",
         "key": "FINGRID_API_KEY",
         "headers": {"x-api-key": "FINGRID_API_KEY"},
     },
-    "fingrid_imbalance_price": { # imbalance price, 15 min, EUR/MWh — the near-term price driver
+    "fingrid_imbalance_price": {  # imbalance price, 15 min, EUR/MWh — the near-term price driver
         "url": "https://data.fingrid.fi/api/datasets/319/data"
-               "?startTime={start}&endTime={end}&pageSize=20",
+        "?startTime={start}&endTime={end}&pageSize=20",
         "params": "start, end = ISO8601 (default: last 2 hours)",
         "key": "FINGRID_API_KEY",
         "headers": {"x-api-key": "FINGRID_API_KEY"},
     },
-    "fingrid_nuclear": {         # Finland nuclear production, real-time MW (OL3 is ~1600 MW)
+    "fingrid_nuclear": {  # Finland nuclear production, real-time MW (OL3 is ~1600 MW)
         "url": "https://data.fingrid.fi/api/datasets/188/data"
-               "?startTime={start}&endTime={end}&pageSize=20",
+        "?startTime={start}&endTime={end}&pageSize=20",
         "params": "start, end = ISO8601 (default: last 2 hours)",
         "key": "FINGRID_API_KEY",
         "headers": {"x-api-key": "FINGRID_API_KEY"},
     },
-    "fingrid_hydro": {           # Finland hydro production, real-time MW
+    "fingrid_hydro": {  # Finland hydro production, real-time MW
         "url": "https://data.fingrid.fi/api/datasets/191/data"
-               "?startTime={start}&endTime={end}&pageSize=20",
+        "?startTime={start}&endTime={end}&pageSize=20",
         "params": "start, end = ISO8601 (default: last 2 hours)",
         "key": "FINGRID_API_KEY",
         "headers": {"x-api-key": "FINGRID_API_KEY"},
     },
-    "fingrid_production": {      # total Finland production, real-time MW
+    "fingrid_production": {  # total Finland production, real-time MW
         "url": "https://data.fingrid.fi/api/datasets/192/data"
-               "?startTime={start}&endTime={end}&pageSize=20",
+        "?startTime={start}&endTime={end}&pageSize=20",
         "params": "start, end = ISO8601 (default: last 2 hours)",
         "key": "FINGRID_API_KEY",
         "headers": {"x-api-key": "FINGRID_API_KEY"},
     },
-    "fingrid_surplus": {         # Finland production surplus/deficit, real-time MW (negative = deficit)
+    "fingrid_surplus": {  # Finland production surplus/deficit, real-time MW (negative = deficit)
         "url": "https://data.fingrid.fi/api/datasets/198/data"
-               "?startTime={start}&endTime={end}&pageSize=20",
+        "?startTime={start}&endTime={end}&pageSize=20",
         "params": "start, end = ISO8601 (default: last 2 hours)",
         "key": "FINGRID_API_KEY",
         "headers": {"x-api-key": "FINGRID_API_KEY"},
     },
-    "fingrid_imbalance_power": { # imbalance power FI-SE, hourly MW
+    "fingrid_imbalance_power": {  # imbalance power FI-SE, hourly MW
         "url": "https://data.fingrid.fi/api/datasets/176/data"
-               "?startTime={start}&endTime={end}&pageSize=20",
+        "?startTime={start}&endTime={end}&pageSize=20",
         "params": "start, end = ISO8601 (default: last 2 hours)",
         "key": "FINGRID_API_KEY",
         "headers": {"x-api-key": "FINGRID_API_KEY"},
     },
-    "capacity_fi_se1": {         # intraday transfer capacity FI-SE1, 15 min MW, keyless
+    "capacity_fi_se1": {  # intraday transfer capacity FI-SE1, 15 min MW, keyless
         "url": "https://data.fingrid.fi/api/datasets/44/data"
-               "?startTime={start}&endTime={end}&pageSize=20",
+        "?startTime={start}&endTime={end}&pageSize=20",
         "params": "start, end = ISO8601 (default: last 2 hours)",
         "key": "FINGRID_API_KEY",
         "headers": {"x-api-key": "FINGRID_API_KEY"},
     },
-    "capacity_fi_ee": {          # intraday transfer capacity FI-EE, 15 min MW, keyless
+    "capacity_fi_ee": {  # intraday transfer capacity FI-EE, 15 min MW, keyless
         "url": "https://data.fingrid.fi/api/datasets/111/data"
-               "?startTime={start}&endTime={end}&pageSize=20",
+        "?startTime={start}&endTime={end}&pageSize=20",
         "params": "start, end = ISO8601 (default: last 2 hours)",
         "key": "FINGRID_API_KEY",
         "headers": {"x-api-key": "FINGRID_API_KEY"},
     },
-    "transfer_flow": {           # live amount crossing a border (ENTSO-E docType A11)
+    "transfer_flow": {  # live amount crossing a border (ENTSO-E docType A11)
         "url": "https://web-api.tp.entsoe.eu/api?securityToken={token}"
-               "&documentType=A11&in_Domain={in_domain}&out_Domain={out_domain}"
-               "&periodStart={start}&periodEnd={end}",
+        "&documentType=A11&in_Domain={in_domain}&out_Domain={out_domain}"
+        "&periodStart={start}&periodEnd={end}",
         "params": "in_domain, out_domain = EIC codes, start, end = YYYYMMDDHHMM (required)",
         "key": "ENTSOE_API_KEY",
     },
@@ -312,14 +336,21 @@ def fetch_url(url: str, headers: dict = None) -> str:
     """GET a URL, return the body (JSON pretty-printed). Nord Pool hosts only."""
     host = urlsplit(url).hostname
     if host not in ALLOWED_HOSTS:
-        return (f"Error: {host} is out of the Nord Pool scope; "
-                f"allowed hosts: {', '.join(sorted(h for h in ALLOWED_HOSTS if h))}")
+        return (
+            f"Error: {host} is out of the Nord Pool scope; "
+            f"allowed hosts: {', '.join(sorted(h for h in ALLOWED_HOSTS if h))}"
+        )
     try:
-        for attempt in range(5):        # Fingrid allows ~1 req/s; a 429 is transient, retry
-            req = urllib.request.Request(url, headers={"User-Agent": "livelectroray-harness/1", **(headers or {})})
+        for attempt in range(5):  # Fingrid allows ~1 req/s; a 429 is transient, retry
+            req = urllib.request.Request(
+                url,
+                headers={"User-Agent": "livelectroray-harness/1", **(headers or {})},
+            )
             try:
                 with urllib.request.urlopen(req, timeout=15) as r:
-                    body = r.read(MAX_BYTES).decode(r.headers.get_content_charset() or "utf-8", "replace")
+                    body = r.read(MAX_BYTES).decode(
+                        r.headers.get_content_charset() or "utf-8", "replace"
+                    )
                 break
             except urllib.error.HTTPError as e:
                 # Fingrid 429s at ~1 req/s; the outage CDN 403s on a random edge. Both are transient.
@@ -331,8 +362,12 @@ def fetch_url(url: str, headers: dict = None) -> str:
         except ValueError:
             return body[:MAX_CHARS]
         s = json.dumps(d, indent=2)
-        while len(s) > MAX_CHARS and isinstance(d.get("data"), list) and len(d["data"]) > 8:
-            d["data"] = d["data"][::2]        # thin rows, keep the whole time span
+        while (
+            len(s) > MAX_CHARS
+            and isinstance(d.get("data"), list)
+            and len(d["data"]) > 8
+        ):
+            d["data"] = d["data"][::2]  # thin rows, keep the whole time span
             s = json.dumps(d, indent=2)
         return s[:MAX_CHARS]
     except Exception as e:
@@ -349,18 +384,26 @@ def get_data(source: str, **params) -> str:
     if key and not os.environ.get(key):
         return f"Error: source {source!r} needs {key} in the environment"
     params = {**s.get("defaults", {}), **params}
-    if "start" in s["url"] and "start" not in params:     # default window
-        now = datetime.now(timezone.utc)
-        ahead = s.get("ahead")                            # forward feeds look ahead, the rest look back
-        back = s.get("back", 2)                           # laggy series look further back
-        params["start"] = (now if ahead else now - timedelta(hours=back)).strftime("%Y-%m-%dT%H:%M:%SZ")
-        params["end"] = (now + timedelta(hours=ahead) if ahead else now).strftime("%Y-%m-%dT%H:%M:%SZ")
+    if "start" in s["url"] and "start" not in params:  # default window
+        now = datetime.now(UTC)
+        ahead = s.get("ahead")  # forward feeds look ahead, the rest look back
+        back = s.get("back", 2)  # laggy series look further back
+        params["start"] = (now if ahead else now - timedelta(hours=back)).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
+        params["end"] = (now + timedelta(hours=ahead) if ahead else now).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
     try:
-        return fetch_url(s["url"].format(
-            token=os.environ.get("ENTSOE_API_KEY", ""),
-            **params), headers={**s.get("hdr", {}),
-                                **{h: os.environ.get(v, "") for h, v in s.get("headers", {}).items()}})
+        return fetch_url(
+            s["url"].format(token=os.environ.get("ENTSOE_API_KEY", ""), **params),
+            headers={
+                **s.get("hdr", {}),
+                **{h: os.environ.get(v, "") for h, v in s.get("headers", {}).items()},
+            },
+        )
     except KeyError as e:
         return f"Error: source {source!r} needs parameter {e} ({s['params']})"
+
 
 # shortcut: 1 MB read / 20 k char reply cap, raise MAX_BYTES|MAX_CHARS if a source is bigger

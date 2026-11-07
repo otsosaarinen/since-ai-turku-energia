@@ -129,5 +129,7 @@ Not comparable with sections 1-7 (live forecasts, no backtest, no scoring). What
 | Finnish day-ahead price, next 24 h (no Fingrid key) | answered, but the table was cut off after 14 rows, started in the past, and rested on invented assumptions (nuclear 60 %, hydro 15 %, a made-up load curve) |
 | Finnish imbalance price every 2 h for 12 h (with Fingrid key) | Fingrid data was fetched (latest point 11:30Z), but the model fitted a line through five 15-minute points and projected 133 rising to 495 EUR/MWh; it ignored the day-ahead price it was told to use |
 
+| Same imbalance question through the website panel, gemma-4 E4B, 53 s (`harness/server.py`) | the model passed "5 hours ago" / "now" as the time window, Fingrid refused it twice, the model gave up at turn 4 and answered with confidence "Assumption" (low/high = value +-30), and its times were Unix seconds for the start of the day (already past). Fix: the server now gives the current UTC time and the ISO-timestamp rule in every prompt; not re-tested yet |
+
 Reading: the imbalance price has almost no memory after an hour (autocorrelation 0.09 at 1 h, section 3), so a line through the latest points cannot work, and a 4B model chooses the
 simplest method. A prompt that forces "day-ahead price + typical spread" is the next thing to try; not done. A bigger model (gemma-4 12B) was not tried.
