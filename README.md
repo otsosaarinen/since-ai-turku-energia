@@ -150,10 +150,22 @@ settings to share it. **Licence:** the forecasts are built on the Nord Pool spot
 before keeping it public, and delete the Vercel project after the event (`npx vercel remove <project-name>`). Local alternative without uploading anything:
 `npm run dev -- --host` and share a tunnel such as `npx cloudflared tunnel --url http://localhost:5173`. Not tested end to end.
 
+## Harness prediction (second method, in `harness/`)
+`harness/` holds code copied from https://github.com/rogue-agent/livelectroray (commit `b44314d`, reviewed read-only; see `harness/README.md`). It lets an AI model run Python
+and fetch live data, so treat it as untrusted: its `run_python` tool runs model-written code with your full user access. It uses this project's uv environment, so there is only
+one uv project: `uv sync --group harness` installs its packages (openai, scipy, statsmodels). With a local model server such as the Llama app on port 9931 (context 16k or more):
+```bash
+cd harness
+HARNESS_PROVIDER=llamacpp LLAMACPP_BASE_URL=http://localhost:9931/v1 \
+  uv run --group harness python harness.py -m "ggml-org/gemma-4-E4B-it-GGUF:Q8_0" -q "predict the next 24 h"
+```
+It makes live forecasts (next 24 h / 7 days) and is not a backtest, so its output does not fit the website's chart or the submission file as it is. Plain `uv sync`
+removes the harness packages again; run `uv sync --group harness` to get them back. API keys it asks for are saved to `harness/key.txt` and reports to `harness/reports/` (both git-ignored).
+
 ## Layout
 - `src/availability.py` availability filter (fast index, same result as the organiser's `rows_available_at`)
 - `src/features.py` features per (origin, step) and the input groups the viewer can switch off | `src/train.py`, `src/predict.py` models |
   `src/evaluate.py` validator and scorer wrappers | `src/exports.py` viewer tables | `src/baseline.py` organiser baseline
 - `scripts/` `run_validation.py`, `run_rolling.py`, `run_final.py`, `run_variants.py`, `exp_postproc.py`, `export_web_data.py`, `start_web.sh`, `show_origin.py`,
   `train_cpu.sbatch` (LUMI Slurm job for the final run; untested, LUMI is optional because local training takes about a minute)
-- `web/` React viewer (`web/src/design-system/` = Turku Energia design components) | `tests/` Python tests | `configs/default.yaml` all model settings
+- `harness/` the separate harness code (second method) | `web/` React viewer (`web/src/design-system/` = Turku Energia design components) | `tests/` Python tests | `configs/default.yaml` all model settings

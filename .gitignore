@@ -24,3 +24,9 @@ web/public/data/
 *.pkl
 *.zip
 .vercel/
+
+# harness: API keys and generated reports
+harness/key.txt
+harness/reports/
+harness/__pycache__/
+harness/answer*.txt

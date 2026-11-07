@@ -65,6 +65,14 @@ vs spot). 8 leaves, extra-trees, 6 seeds, rounds from a time-ordered inner split
 - Wording: plain language (no "p50", "in band"); only two `Info` tooltips (period, key numbers) (the user found many annoying); text areas have fixed heights so changing
   numbers never shift the chart. Design components were copied from a Lovable template (~/Downloads/d489a847-...; only the design system was used).
 
+## Harness (harness/, copied from another repo)
+`harness/` = copy of https://github.com/rogue-agent/livelectroray at b44314d (brand-new anonymous repo, no licence file, reviewed read-only: no malware seen, but its `run_python`
+tool executes model-written code with full user access; prompt injection from fetched web data is the main risk). Run from `harness/` with this project's uv env
+(`uv run --group harness python harness.py ...`, group `harness` in pyproject.toml). `harness/key.txt` and `harness/reports/` are git-ignored. Do not edit its code without noting it
+in harness/README.md. It is a live 24 h / 7 d analyst, not a backtest: its csv (horizon,time,area,metric,value,unit,low,high,confidence,drivers) cannot fill the website's harness JSON
+without a converter and a decision on what to show. The Llama app (localhost:9931, OpenAI-style API) needs context >= 16k for it; the harness picks the FIRST listed model if `-m`
+is missing (that is the tiny Qwen). Its dependencies are the `harness` group in pyproject.toml (the upstream requirements.txt was not copied).
+
 ## Decisions and open questions
 - Extra Fingrid history before 1 Jun (to "teach winter"): the user has a Fingrid API key (not stored; if used put it in `.secrets/fingrid.env`, git-ignored)
   and says the organisers allow extra data. NOT done. Obstacles: no spot price before June, pricing rules changed 1 Jun, ENTSO-E needs a token, test

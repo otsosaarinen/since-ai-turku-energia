@@ -15,6 +15,7 @@ dependencies = [
 [dependency-groups]
 dev = ["pytest>=8"]
 app = ["streamlit>=1.40"]
+harness = ["openai>=1.50", "scipy>=1.11", "statsmodels>=0.14"]   # for the separate harness repo in ~/Projects/livelectroray
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

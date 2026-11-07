@@ -7,10 +7,11 @@
 | Nord Pool day-ahead spot price, Finland | feature + spike reference, via starter package | Licensed to Turku Energia; hackathon use only, not redistributed, not in the repo, deleted after the event |
 | Calendar series (weekday, hour, Finnish holidays, DST) | inputs, via starter package | provided by organiser |
 | Organiser scripts (`validate_submission.py`, `score.py`, `make_templates.py`, baseline notebook) | validation/scoring; baseline logic ported to `src/baseline.py` | provided by organiser for the hackathon |
+| Harness code (`harness/`) copied from github.com/rogue-agent/livelectroray @ b44314d | second prediction method (live, not part of the submission file) | no licence file upstream; ask the author before publishing. Its live data sources (Elering, Statnett, Fingrid, Open-Meteo, MET Norway, ENTSO-E and others, listed in `harness/sources.py`) are used only when someone runs it |
 | No external data added | no weather API, no Open-Meteo, no Fingrid history before 1 June | – |
 
 Software: Python, pandas (BSD-3), numpy (BSD-3), pyarrow (Apache-2.0), LightGBM (MIT), scikit-learn (BSD-3),
-PyYAML (MIT), pytest (MIT), uv (MIT/Apache-2.0), optional Streamlit (Apache-2.0) for the older viewer. Models are trained from scratch; no
+PyYAML (MIT), optional harness extras openai (Apache-2.0), scipy (BSD-3), statsmodels (BSD-3), pytest (MIT), uv (MIT/Apache-2.0), optional Streamlit (Apache-2.0) for the older viewer. Models are trained from scratch; no
 pretrained or third-party models. TypeScript (Apache-2.0) for the web viewer. Web test tools: Vitest, jsdom, Testing Library (all MIT). No external data was added: the Fingrid history before
 1 June and weather data were considered and not used (see `EXPERIMENTS.md` section 4).
 
