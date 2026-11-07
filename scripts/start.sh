@@ -21,14 +21,23 @@ sys.path.insert(0, str(ROOT))
 import pandas as pd
 
 from src.exports import web_payload
+from src.alerts import generate_situational_overview
 
 OUT = ROOT / "web" / "public" / "data"
 OUT.mkdir(parents=True, exist_ok=True)
 
 for name, src in (("validation", "outputs/validation/backtest_vs_actual.csv"), ("final", "outputs/final/forecast_backtest.csv")):
-    payload = web_payload(pd.read_csv(ROOT / src), name)
-    (OUT / f"{name}.json").write_text(json.dumps(payload, separators=(",", ":")))
-    print(name, len(payload["rows"]), "rows,", round((OUT / f"{name}.json").stat().st_size / 1e6, 1), "MB")
+    src_path = ROOT / src
+    if src_path.exists():
+        df = pd.read_csv(src_path)
+        payload = web_payload(df, name)
+        (OUT / f"{name}.json").write_text(json.dumps(payload, separators=(",", ":")))
+        print(name, len(payload["rows"]), "rows,", round((OUT / f"{name}.json").stat().st_size / 1e6, 1), "MB")
+
+        alerts = generate_situational_overview(df)
+        alerts_file = OUT / f"alerts_{name}.json"
+        alerts_file.write_text(json.dumps(alerts, indent=2))
+        print(f"  -> {len(alerts)} operational alerts exported to {alerts_file.name}")
 PY
 else
   echo "No model outputs in outputs/, so the viewer data was not rebuilt." >&2

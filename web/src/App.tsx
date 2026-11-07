@@ -92,9 +92,37 @@ export function ChartTip({ active, payload }: { active?: boolean; payload?: { pa
   );
 }
 
-function Chip({ value, label }: { value: string; label: string }) {
+function Chip({
+  value,
+  label,
+  tone = "default",
+  badge,
+}: {
+  value: string;
+  label: string;
+  tone?: "default" | "high" | "low" | "critical";
+  badge?: string;
+}) {
+  const toneCls =
+    tone === "critical"
+      ? "border-2 border-destructive bg-destructive/10"
+      : tone === "high"
+      ? "border-2 border-orange-fill bg-orange-fill/15"
+      : tone === "low"
+      ? "border-2 border-emerald-600 bg-emerald-50"
+      : "bg-bg-light";
   return (
-    <div className="flex h-[4.25rem] w-28 shrink-0 flex-col items-center justify-center rounded-md bg-bg-light px-2 text-center">
+    <div className={cn("relative flex h-[4.25rem] w-28 shrink-0 flex-col items-center justify-center rounded-md px-2 text-center transition-all", toneCls)}>
+      {badge && (
+        <span
+          className={cn(
+            "absolute -top-2 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white",
+            tone === "critical" ? "bg-destructive" : tone === "high" ? "bg-orange-fill" : "bg-emerald-700"
+          )}
+        >
+          {badge}
+        </span>
+      )}
       <div className="font-serif text-2xl font-light leading-none tabular-nums text-navy">{value}</div>
       <div className="mt-1 text-xs leading-tight text-muted-foreground">{label}</div>
     </div>
@@ -325,17 +353,92 @@ export default function App() {
       : "It is unclear whether the grid needs more or less power.";
   const pct = (v: number) => `${(v * 100).toFixed(0)} %`;
 
+  // Level 2 Operational Situational Risk & Recommendations (integrated from active directory)
+  const highSpikes = rows.filter((r) => r.p_spike_high > 0.20);
+  const lowSpikes = rows.filter((r) => r.p_spike_low > 0.20);
+
+  const highAlert = highSpikes.length > 0 ? {
+    severity: maxHi > 0.35 ? ("CRITICAL" as const) : ("HIGH" as const),
+    timeWindow: `${hhmm(highSpikes[0].delivery_start_utc)} – ${hhmm(highSpikes[highSpikes.length - 1].delivery_start_utc)}`,
+    maxProb: maxHi,
+    peakPrice: Math.max(...highSpikes.map((r) => r.p50)),
+    recommendation: "Review thermal dispatch plan; prepare quick-start reserve capacity or reduce flexible consumption.",
+  } : null;
+
+  const lowAlert = lowSpikes.length > 0 ? {
+    severity: maxLo > 0.35 ? ("CRITICAL" as const) : ("HIGH" as const),
+    timeWindow: `${hhmm(lowSpikes[0].delivery_start_utc)} – ${hhmm(lowSpikes[lowSpikes.length - 1].delivery_start_utc)}`,
+    maxProb: maxLo,
+    floorPrice: Math.min(...lowSpikes.map((r) => r.p50)),
+    recommendation: "Downward regulation dominant; evaluate curtailing high-cost units or scheduling demand response / storage charging.",
+  } : null;
+
+  const regimeRec = upShare > 0.55
+    ? "Strong upward balancing trend; offer flexible capacity to mFRR upward reserve market."
+    : upShare < 0.45
+      ? "Strong downward balancing trend; evaluate downward reserve bids or flexible demand shifting."
+      : null;
+
+  const hiTone = maxHi > 0.35 ? "critical" : maxHi > 0.20 ? "high" : "default";
+  const hiBadge = maxHi > 0.35 ? "Critical" : maxHi > 0.20 ? "High Risk" : undefined;
+  const loTone = maxLo > 0.35 ? "critical" : maxLo > 0.20 ? "low" : "default";
+  const loBadge = maxLo > 0.35 ? "Critical" : maxLo > 0.20 ? "Low Risk" : undefined;
+
   return shell(
     <>
       {header}
-      {/* one slim strip: what it means, the main drivers, the key numbers */}
-      <Card className="flex flex-wrap items-center gap-x-6 gap-y-3 order-last border-l-4 border-l-brand bg-white p-3 lg:order-none lg:h-20 lg:flex-nowrap lg:overflow-visible">
+      {/* one slim strip: what it means, the main drivers, the key numbers & operational situational alerts */}
+      <Card className="flex flex-wrap items-center gap-x-6 gap-y-3 order-last border-l-4 border-l-brand bg-white p-3 lg:order-none lg:flex-nowrap lg:overflow-visible">
         <div className="min-w-64 flex-1 lg:min-w-0">
-          <p className="leading-snug lg:line-clamp-1" title={dirText}>{dirText}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="leading-snug lg:line-clamp-1" title={dirText}>{dirText}</p>
+            {highAlert && (
+              <span className={cn(
+                "rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white",
+                highAlert.severity === "CRITICAL" ? "bg-destructive animate-pulse" : "bg-orange-fill"
+              )}>
+                {highAlert.severity === "CRITICAL" ? "Critical High Spike" : "High Spike Risk"}
+              </span>
+            )}
+            {lowAlert && (
+              <span className="rounded bg-emerald-700 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
+                {lowAlert.severity === "CRITICAL" ? "Critical Low Spike" : "Low Price Risk"}
+              </span>
+            )}
+            {!highAlert && !lowAlert && (
+              <span className="rounded bg-navy/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-navy">
+                Normal Risk (&lt; 20%)
+              </span>
+            )}
+          </div>
+
+          {/* Operational recommendations for shift supervisors */}
+          {(highAlert || lowAlert || regimeRec) && (
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
+              {highAlert && (
+                <div className="flex items-center gap-1 rounded bg-destructive/10 px-2 py-0.5 text-destructive">
+                  <span className="font-bold">{highAlert.timeWindow}:</span>
+                  <span>{highAlert.recommendation}</span>
+                </div>
+              )}
+              {lowAlert && (
+                <div className="flex items-center gap-1 rounded bg-emerald-50 px-2 py-0.5 text-emerald-800">
+                  <span className="font-bold">{lowAlert.timeWindow}:</span>
+                  <span>{lowAlert.recommendation}</span>
+                </div>
+              )}
+              {!highAlert && !lowAlert && regimeRec && (
+                <div className="flex items-center gap-1 rounded bg-navy/5 px-2 py-0.5 text-navy">
+                  <span className="font-bold">Regime:</span>
+                  <span>{regimeRec}</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <Chip value={pct(maxHi)} label="high price spike" />
-          <Chip value={pct(maxLo)} label="low price spike" />
+          <Chip value={pct(maxHi)} label="high price spike" tone={hiTone} badge={hiBadge} />
+          <Chip value={pct(maxLo)} label="low price spike" tone={loTone} badge={loBadge} />
           {hasAct && <Chip value={mae == null ? "–" : mae.toFixed(1)} label="average error, €/MWh" />}
         </div>
       </Card>
