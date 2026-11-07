@@ -13,6 +13,13 @@ export function answerTickFormatter(points: AnswerPoint[]): (ms: number) => stri
   return span > ONE_AND_A_HALF_DAYS_MS ? (ms) => `${finnishDate(ms).slice(0, 5)} ${finnishClock(ms)}` : finnishClock;
 }
 
+const MAX_LABELLED_POINTS = 12;
+
+/** With a few points every point gets its own label (otherwise the axis invents times like 06:10); with many, the axis chooses. */
+export function tickPositions(points: AnswerPoint[]): number[] | undefined {
+  return points.length <= MAX_LABELLED_POINTS ? points.map((point) => point.ms) : undefined;
+}
+
 /** The forecast of an answer as a chart: orange line, blue range (same colours as the main chart). */
 export function AnswerChart({ points }: { points: AnswerPoint[] }) {
   return (
@@ -20,7 +27,7 @@ export function AnswerChart({ points }: { points: AnswerPoint[] }) {
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={points} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
           <CartesianGrid stroke={CHART_COLORS.grid} strokeDasharray="3 3" vertical={false} />
-          <XAxis type="number" dataKey="ms" domain={["dataMin", "dataMax"]} tickFormatter={answerTickFormatter(points)} stroke={CHART_COLORS.axis} fontSize={12} />
+          <XAxis type="number" dataKey="ms" domain={["dataMin", "dataMax"]} ticks={tickPositions(points)} tickFormatter={answerTickFormatter(points)} stroke={CHART_COLORS.axis} fontSize={12} />
           <YAxis stroke={CHART_COLORS.axis} fontSize={12} width={64} label={Y_AXIS_TITLE} />
           <Tooltip content={ReasoningTooltip} cursor={{ stroke: CHART_COLORS.axis, strokeDasharray: "3 3" }} />
           <Area dataKey="base" stackId="b" stroke="none" fill="transparent" legendType="none" isAnimationActive={false} />

@@ -184,3 +184,35 @@ def test_nordpool_price_without_a_window_covers_every_published_hour(recorded):
         timedelta(minutes=59) < now - start < timedelta(minutes=61)
     )  # one hour back: includes the current quarter-hour
     assert timedelta(hours=47) < end - now < timedelta(hours=49)  # up to everything that is published
+
+
+# ---------- nordpool_price returns one area ----------
+FEED = json.dumps(
+    {
+        "success": True,
+        "data": {
+            "ee": [{"timestamp": 1, "price": 199.0}],
+            "fi": [{"timestamp": 1, "price": 5.5}],
+            "lv": [{"timestamp": 1, "price": 253.0}],
+            "lt": [{"timestamp": 1, "price": 276.0}],
+        },
+    }
+)
+
+
+def test_nordpool_price_returns_finland_only_by_default(monkeypatch):
+    # the feed lists Estonia first; a model once took that list for Finland and forecast about 195 EUR/MWh
+    monkeypatch.setattr(sources, "_read_body", lambda url, headers: FEED)
+    data = json.loads(sources.get_data("nordpool_price"))["data"]
+    assert list(data) == ["fi"] and data["fi"][0]["price"] == 5.5
+
+
+def test_nordpool_price_can_be_asked_for_another_area(monkeypatch):
+    monkeypatch.setattr(sources, "_read_body", lambda url, headers: FEED)
+    assert list(json.loads(sources.get_data("nordpool_price", {"area": "EE"}))["data"]) == ["ee"]
+
+
+def test_nordpool_price_with_an_unknown_area_says_which_exist(monkeypatch):
+    monkeypatch.setattr(sources, "_read_body", lambda url, headers: FEED)
+    answer = sources.get_data("nordpool_price", {"area": "xx"})
+    assert answer.startswith("Error:") and "ee, fi, lv, lt" in answer

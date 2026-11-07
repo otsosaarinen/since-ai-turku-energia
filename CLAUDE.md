@@ -54,7 +54,7 @@ Run backend commands from `backend/` (`uv sync` first; macOS needs `brew install
 | Website data from outputs/ | `uv run scripts/export_web_data.py` -> `frontend/public/data/` |
 | Organiser tools | `uv run python -I starter_package_v1/{validate_submission,score,make_templates}.py` |
 
-- Current counts (8 Nov): 160 backend tests, 171 frontend tests, ruff and eslint clean. Update these when they change.
+- Current counts (8 Nov): 164 backend tests, 172 frontend tests, ruff and eslint clean. Update these when they change.
 - Do not run the training scripts just to check something; they are slow and overwrite outputs.
 
 ## Model (details in REPORT.md)
@@ -88,12 +88,13 @@ Run backend commands from `backend/` (`uv sync` first; macOS needs `brew install
 - Copy of https://github.com/rogue-agent/livelectroray at b44314d, written by a teammate (licence concern settled). Do not edit upstream logic without noting it in its README.
 - It is a live 24 h / 7 d analyst, not a backtest. Its CSV cannot fill the website's harness JSON without a converter; not connected to the chart.
 - Forecasts so far are weak (EXPERIMENTS.md section 8). The LightGBM model stays the entry; the harness is a live demo.
+- 8 Nov test results: the Day-ahead preset is correct with gemma E4B (values match the real Finnish prices); the Imbalance preset fails with E4B (its Python misreads the saved data files, 6 fetches leave few of the 10 tool calls for retries, the answer then clamps to 400). Not yet tried with a larger model.
 - Run: `./dev.sh` (server on 127.0.0.1:8765, reached through the `/harness-api` rewrite in `frontend/next.config.ts`). Needs the Llama app on localhost:9931 with context >= 16k.
 - Models: the panel offers every model the Llama app lists (optional restriction: `HARNESS_MODEL_FILTER`, empty by default). Restart `./dev.sh` after any change to harness code.
 - Keys (`FINGRID_API_KEY`, `ENTSOE_API_KEY`) live in the root `.env`; the Settings box can save them there. Never print or commit them; the server never returns them.
 - Audited 8 Nov: `run_python` runs with a scrubbed environment (no API keys) and, on macOS, inside a sandbox. The main risk is prompt injection from fetched web data.
 - Open decision: set `HARNESS_PYTHON_NETWORK=0` (cuts network for model code; then `zones.cf()` stops working).
-- `HARNESS_AUTO_RECALC=0` stops alert-triggered runs. The imbalance prompt gives all 24 hourly rows the same spot level (latest spot + spread) and ignores the known day-ahead prices: open design question for the user and teammate.
+- `HARNESS_AUTO_RECALC=0` stops alert-triggered runs. `nordpool_price` returns Finland only by default (the feed lists Estonia first and models mistook it for Finland); the imbalance prompt uses each hour's published day-ahead price (fixed 8 Nov, was one flat level).
 - Do not change the progress line format `[turn k/n]`, `[tool]`, `[result]`, `[think]`, `[done]`, `[stop]`: `frontend/src/features/harness/lib/progressSteps.ts` parses it.
 - Hosted demo: set `NEXT_PUBLIC_HIDE_HARNESS=true` (the Harness tab and proxy disappear).
 
@@ -115,4 +116,3 @@ Run backend commands from `backend/` (`uv sync` first; macOS needs `brew install
   justified suggestions. The website has time travel and alerts but NO past-performance view yet. The brand guide asks for the official
   presentation template for slides (not available) and a warm, plain, solution-focused tone.
 - Still to do by the user: slides (5-8), the demo video, Safari check of the redesign (the y-axis title and error chip fixes are untested visually).
-- Open design question: the harness imbalance prompt gives all 24 hourly rows one spot level (see backend/harness/README.md).

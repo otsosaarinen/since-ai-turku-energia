@@ -51,9 +51,11 @@ def _fingrid(dataset: int, *, back: int = DEFAULT_LOOKBACK_HOURS) -> dict[str, A
 SOURCES: dict[str, dict[str, Any]] = {
     "nordpool_price": {  # day-ahead spot price, every area, keyless
         "url": "https://dashboard.elering.ee/api/nps/price?start={start}&end={end}",
-        "params": "start,end = ISO8601 UTC (optional; default: 1 hour ago to 48 hours ahead, every published hour)",
+        "params": "start,end = ISO8601 UTC (optional; default: 1 hour ago to 48 hours ahead, every published hour); "
+        "area = fi (default), ee, lv or lt",
         "back": 1,  # hours before now when no start is given
         "ahead": 48,  # hours after now when no end is given
+        "area_default": "fi",  # the feed lists ee, fi, lv, lt; only the asked area is returned (Finland by default)
         "note": "same Nord Pool spot for all areas; Fingrid sells no price in open data",
     },
     "spot_price_fi": {  # Finland current spot, keyless
@@ -257,14 +259,35 @@ def _shorten(body: str) -> str:
     return text[:MAX_CHARS]
 
 
-def fetch_url(url: str, headers: dict[str, str] | None = None) -> str:
-    """GET a URL on an allowed host over https and return the body (JSON pretty-printed); failures are 'Error: ...'."""
+def _keep_area(body: str, area: str) -> str:
+    """From a feed shaped {"data": {"ee": [...], "fi": [...], ...}} keep only one area (a model reading the whole feed
+    took the first list, Estonia, for Finland). Bodies of another shape are returned unchanged."""
+    try:
+        parsed = json.loads(body)
+    except ValueError:
+        return body
+    data = parsed.get("data") if isinstance(parsed, dict) else None
+    if not isinstance(data, dict):
+        return body
+    if area not in data:
+        return f"Error: area {area!r} is not in this feed; use one of: {', '.join(data)}"
+    return json.dumps({**parsed, "data": {area: data[area]}})
+
+
+def fetch_url(url: str, headers: dict[str, str] | None = None, keep_area: str | None = None) -> str:
+    """GET a URL on an allowed host over https and return the body (JSON pretty-printed); failures are 'Error: ...'.
+
+    `keep_area` limits a multi-area price feed to one area (see _keep_area).
+    """
     parts = urlsplit(url)
     if parts.scheme != "https" or parts.hostname not in ALLOWED_HOSTS:
         allowed = ", ".join(sorted(host for host in ALLOWED_HOSTS if host))
         return f"Error: {parts.hostname} is out of the Nord Pool scope or not https; allowed hosts: {allowed}"
     try:
-        return _shorten(_read_body(url, headers))
+        body = _read_body(url, headers)
+        if keep_area:
+            body = _keep_area(body, keep_area)
+        return body if body.startswith("Error:") else _shorten(body)
     except (urllib.error.URLError, http.client.HTTPException, OSError, ValueError) as error:
         logger.debug("fetch failed for host %s: %s", parts.hostname, type(error).__name__)
         return redact(f"Error: {error}")  # an invalid-URL error can quote the URL, which may hold the ENTSO-E token
@@ -300,4 +323,5 @@ def get_data(source: str, params: dict[str, Any] | None = None) -> str:
         url = spec["url"].format(**encoded)
     except KeyError as missing:
         return f"Error: source {source!r} needs parameter {missing} ({spec['params']})"
-    return fetch_url(url, headers=headers)
+    keep_area = str(values.get("area", spec["area_default"])).lower() if "area_default" in spec else None
+    return fetch_url(url, headers=headers, keep_area=keep_area)

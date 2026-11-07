@@ -13,7 +13,7 @@ allowed host), then analyse with `run_python` (pandas, numpy, scipy,
 statsmodels, sklearn). Print results clearly.
 
 get_data sources (* = forward-looking weather feed):
-  nordpool_price       day-ahead spot, EUR/MWh, every area (params: start,end)
+  nordpool_price       day-ahead spot, EUR/MWh, Finland by default (params: start,end,area=fi|ee|lv|lt)
   spot_price_fi        Finland current spot, EUR/kWh: PriceNoTax (use this) and PriceWithTax
   nordpool_dayahead    day-ahead spot per bidding zone, 15 min EUR/MWh (params: date, area)
 * cloud_wind           cloud cover + wind m/s at a point, hourly to 8 days (params: lat, lon)

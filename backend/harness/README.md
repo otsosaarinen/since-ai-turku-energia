@@ -87,16 +87,12 @@ Keep the model small and local, and do not run the harness where you cannot affo
 
 - `memory.json` (kept when a forecast row moves over 3 % between runs, last 200 entries) is written but nothing reads it.
 - The `ollama` and `openrouter` providers and the interactive prompt in `agent.py` work only from the command line.
+- The Imbalance preset is too much for a small model (gemma E4B): its Python misreads the layout of the saved data files, the six data fetches leave
+  few of the 10 tool calls for retries, and a failed calculation still ends in an answer (every hourly value clamped to 400). The Day-ahead preset
+  works and matches the real prices. Ideas if it matters: drop the two fetches the calculation does not need (`spot_price_fi`, `fingrid_consumption`),
+  or do the arithmetic in a helper module instead of in model-written code. A larger model is untested.
 - The saved data files hold the thinned data (every second row for long feeds), not the full response.
 - A small model (gemma E4B) often miscalculates or invents numbers when a step fails; a larger one helps; every model the Llama app lists can be picked.
-- The imbalance prompt sets every hourly forecast to the latest spot price plus a spread, so the 24 hourly rows share one spot level.
-  The published day-ahead prices for those hours are known and are deliberately not used (teammate's design, 7 Nov); worth revisiting.
-
-## Origin and change log (project rule: every change to upstream code is listed here)
-
-Copied from https://github.com/rogue-agent/livelectroray at commit b44314d893 (reviewed read-only on 7 Nov 2026; no licence file upstream;
-the author is a teammate). Local changes, in order:
-
 - Reformatted by the editor (formatting and unused imports only); docstring says uv instead of pip.
 - `--progress`: prints each turn, tool call and result size to stderr, plus the model's reasoning as `[think]` lines.
 - A tool call with invalid JSON arguments no longer crashes the run; such retries have their own budget (4).
@@ -118,3 +114,8 @@ the author is a teammate). Local changes, in order:
   could not load it and it then invented numbers). It now thins the longest list anywhere, keeps the last row and keeps the JSON valid.
   The imbalance prompt got a worked unit example (0.00586 EUR/kWh = 5.86 EUR/MWh) after the small model got it wrong by 10x.
 - 8 Nov 2026: the model filter no longer defaults to `E4B`: all models listed by the Llama app can be chosen in the panel and are accepted by the server (the model id is still checked for odd characters; `HARNESS_MODEL_FILTER` can restrict it again).
+- 8 Nov 2026, after a run with a larger model also gave a flat forecast: the price feed behind `nordpool_price` lists Estonia first, then
+  Finland, Latvia and Lithuania, and models took the first (or last) list for Finland (Estonia was at about 195-200 EUR/MWh while Finland
+  was at about 6). `nordpool_price` now returns only one area, `fi` by default (`area` = `ee`, `lv` or `lt` on request; an unknown area gives
+  an error naming the valid ones). The imbalance prompt no longer forbids the published day-ahead prices: each hourly row now uses that
+  hour's own Finland spot price plus the corrected spread, so the forecast follows the shape of the spot prices instead of one flat level.

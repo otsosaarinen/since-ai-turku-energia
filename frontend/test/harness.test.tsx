@@ -2,7 +2,7 @@ import React from "react";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import HarnessPanel from "../src/features/harness/HarnessPanel";
-import { answerTickFormatter } from "../src/features/harness/components/AnswerChart";
+import { answerTickFormatter, tickPositions } from "../src/features/harness/components/AnswerChart";
 import { ReasoningTooltip } from "../src/features/harness/components/ReasoningTooltip";
 import { parseAnswerTable, splitAnswer, toChartPoints } from "../src/features/harness/lib/answerParsing";
 import { formatModelTime, parseModelTime } from "../src/features/harness/lib/modelTime";
@@ -197,4 +197,11 @@ test("a forecast that spans days labels its time axis with the day, a short one 
   const longAnswer = answerTickFormatter([point(start), point(start + 10 * 24 * hour)]);
   expect(shortAnswer(start)).toBe("14:00");  // 12:00 UTC is 14:00 in Finland
   expect(longAnswer(start)).toBe("07/11 14:00");
+});
+
+test("a short answer labels its own points on the time axis, a long one lets the axis choose", () => {
+  const point = (ms: number) => ({ ms, value: 1, base: 1, width: 0, low: 1, high: 1, confidence: "", drivers: "" });
+  const two = [point(0), point(7_200_000)];
+  expect(tickPositions(two)).toEqual([0, 7_200_000]);
+  expect(tickPositions(Array.from({ length: 34 }, (_, n) => point(n * 3_600_000)))).toBeUndefined();
 });

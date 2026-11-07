@@ -27,3 +27,9 @@ def test_the_imbalance_prompt_uses_the_untaxed_spot_price():
 def test_the_realised_spot_window_is_a_window_the_source_understands():
     # the prompt asks get_data nordpool_price for start/end: the source must have both placeholders
     assert "{start}" in SOURCES["nordpool_price"]["url"] and "{end}" in SOURCES["nordpool_price"]["url"]
+
+
+def test_the_hourly_forecast_uses_each_hours_published_spot_price_not_one_flat_level():
+    prompt = PRESETS["imbalance"]["prompt"]
+    assert "that hour's own Finland spot price" in prompt and "not be one flat number" in prompt
+    assert "do NOT use the published day-ahead hours" not in prompt  # the earlier prompt forbade the known prices
