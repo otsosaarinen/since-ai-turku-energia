@@ -170,15 +170,15 @@ shows the run live as a short list of steps (one per call to the model, named by
 The server (`harness/server.py`, written for this repo) listens on 127.0.0.1 only and refuses any request whose Host or Origin is not localhost, because a run executes model-written Python.
 On the command line the same progress lines appear with `--progress` (added to `harness/harness.py`).
 
-**Fingrid key:** put it in `harness/key.txt` as a line `FINGRID_API_KEY=...` (git-ignored); without it the `fingrid_*` sources fail. Example question that uses it (run from the repo folder):
+**API keys:** the panel shows an input field for each missing key (Fingrid, ENTSO-E; OpenRouter only for the hosted provider) and saves it to `harness/key.txt` (git-ignored, 0600) without showing it again. On the command line the harness asks for missing keys on startup (Enter skips) and saves them there. Without the Fingrid key the `fingrid_*` sources fail. Example question that uses it (run from the repo folder):
 ```bash
 HARNESS_PROVIDER=llamacpp LLAMACPP_BASE_URL=http://localhost:9931/v1 \
-  uv run --group harness python harness/harness.py -m "ggml-org/gemma-4-E4B-it-GGUF:Q8_0" -q "predict the Finnish imbalance price every 2 hours for the next 12 hours" > harness/answer.txt
+  uv run --group harness python harness/harness.py -m "ggml-org/gemma-4-E4B-it-GGUF:Q8_0" -q "predict the Finnish imbalance price every 2 hours for the next 12 hours"
 ```
-Turn an answer into a table with `cd harness && uv run --group harness python report.py answer.txt` (writes `reports/prediction.csv`). It makes live forecasts (next 24 h / 7 days)
+Each answer's csv block (fenced or a plain table) is written automatically to `harness/reports/prediction.csv` and `harness/reports/prediction.md` (human-readable table); `report.py answer.txt` does the same from a saved answer. It makes live forecasts (next 24 h / 7 days)
 and is **not a backtest and not part of the submission file**, so its output does not fit the website's chart as it is. First tests (7 Nov, gemma-4 E4B Q8, 32k context, Llama app):
-it works end to end (about 20 s for a simple question, 2-6 min with data) but a small local model gave weak forecasts, see `EXPERIMENTS.md` section 8. The harness prints no progress. Plain `uv sync`
-removes the harness packages again; run `uv sync --group harness` to get them back. API keys it asks for are saved to `harness/key.txt` and reports to `harness/reports/` (both git-ignored).
+it works end to end (about 20 s for a simple question, 2-6 min with data) but a small local model gave weak forecasts, see `EXPERIMENTS.md` section 8. Progress lines go to stderr (`--progress`, or on in the website panel). Plain `uv sync`
+removes the harness packages again; run `uv sync --group harness` to get them back. Keys live in `harness/key.txt` and reports in `harness/reports/` (both git-ignored).
 
 ## Layout
 - `src/availability.py` availability filter (fast index, same result as the organiser's `rows_available_at`)

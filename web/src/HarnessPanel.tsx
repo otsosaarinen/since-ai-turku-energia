@@ -8,7 +8,8 @@ import { Button, Card, cn } from "@/design-system/the-reading-room-3066fa";
 
 const API = "/harness-api";
 interface Preset { id: string; label: string; about: string }
-interface Info { llama_url: string; models: string[]; presets: Preset[] }
+interface Keys { set: string[]; missing: string[] }
+interface Info { llama_url: string; models: string[]; presets: Preset[]; keys?: Keys }
 export interface JobView { id: string; status: "running" | "done" | "error" | "stopped"; model: string; preset: string; elapsed: number; lines: string[]; next: number; answer: string }
 
 const solidBtn = "border-2 border-orange-fill bg-orange-fill text-white hover:bg-orange-fill/90";
@@ -148,6 +149,9 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
   const [job, setJob] = useState<JobView | null>(null);
   const [lines, setLines] = useState<string[]>([]);
   const [err, setErr] = useState("");
+  const [keys, setKeys] = useState<Keys>({ set: [], missing: [] });
+  const [keyName, setKeyName] = useState("");
+  const [keyValue, setKeyValue] = useState("");
   const nextRef = useRef(0);
   const logRef = useRef<HTMLOListElement>(null);
   const running = job?.status === "running";
@@ -166,6 +170,8 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
         if (cancelled) return;
         if (!i || !Array.isArray(i.presets) || !Array.isArray(i.models)) { setInfo("outdated"); return; }   // an older server version
         setInfo(i);
+        setKeys(i.keys ?? { set: [], missing: [] });
+        setKeyName(i.keys?.missing[0] ?? "");
         setModel((m) => m || i.models.find((x) => /E4B/i.test(x)) || i.models[0] || "");
         setPreset((p) => p || i.presets[0]?.id || "");
       }).catch(() => { if (!cancelled) setInfo("offline"); });
@@ -188,6 +194,13 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
     fetch(`${API}/run`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ preset, model }) })
       .then(async (r) => { const d = await r.json(); if (!r.ok) throw new Error(d.error || String(r.status)); return d; })
       .then((d) => { nextRef.current = 0; setLines([]); apply(d.job); })
+      .catch((e: Error) => setErr(e.message));
+  };
+  const saveKey = () => {
+    setErr("");
+    fetch(`${API}/keys`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: keyName, value: keyValue }) })
+      .then(async (r) => { const d = await r.json(); if (!r.ok) throw new Error(d.error || String(r.status)); return d as Keys; })
+      .then((k) => { setKeys(k); setKeyValue(""); setKeyName(k.missing[0] ?? ""); })
       .catch((e: Error) => setErr(e.message));
   };
   const stop = () => { fetch(`${API}/stop`, { method: "POST" }).catch(() => setErr("Could not stop the run.")); };
@@ -234,6 +247,19 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
               </div>
               <p className="mt-1 text-muted-foreground" data-testid="harness-about">{info.presets.find((p) => p.id === preset)?.about}</p>
             </div>
+            {keys.missing.length > 0 && (
+              <div className="flex flex-col gap-1 text-sm" data-testid="harness-keys">
+                <span className="font-medium">API keys</span>
+                <p className="text-muted-foreground">Some data sources need a key. It is saved to key.txt on this computer and not shown again.</p>
+                <div className="flex gap-2">
+                  <select aria-label="key name" className="h-9 rounded-md border border-input bg-white px-2 text-sm" value={keyName} onChange={(e) => setKeyName(e.target.value)}>
+                    {keys.missing.map((n) => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                  <input aria-label="key value" type="password" autoComplete="off" className="h-9 min-w-0 flex-1 rounded-md border border-input bg-white px-2 text-sm" value={keyValue} onChange={(e) => setKeyValue(e.target.value)} />
+                  <Button size="sm" variant="outline" className={outlineBtn} disabled={!keyValue.trim()} onClick={saveKey}>Save</Button>
+                </div>
+              </div>
+            )}
             <div className="flex items-center gap-3">
               <Button size="sm" variant="primary" className={cn(solidBtn, "w-28")} disabled={running || !model || !preset} onClick={start}>Start run</Button>
               <Button size="sm" variant="outline" className={cn(outlineBtn, "w-20")} disabled={!running} onClick={stop}>Stop</Button>

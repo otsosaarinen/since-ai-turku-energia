@@ -57,6 +57,8 @@ LOCAL_NAMES = {"localhost", "127.0.0.1"}
 MODEL_RE = re.compile(r"^[\w./:\-]{1,200}$")
 # Only the light model is offered and accepted. HARNESS_MODEL_FILTER = comma-separated words, a model id must contain one (case-insensitive).
 MODEL_FILTER = [w.strip().lower() for w in os.environ.get("HARNESS_MODEL_FILTER", "E4B").split(",") if w.strip()]
+KEYFILE = HERE / "key.txt"  # API keys live here ("NAME=value" lines); the panel's key fields write them
+KEY_NAMES = ("FINGRID_API_KEY", "ENTSOE_API_KEY")  # the server runs the local llama.cpp model, so no OpenRouter key
 
 
 def model_allowed(model_id: str) -> bool:
@@ -94,6 +96,48 @@ def check_run_request(body: object) -> tuple[str, str] | str:
     return preset, model
 
 
+def read_keys() -> dict[str, str]:
+    """NAME → value from key.txt; a bare value counts as FINGRID_API_KEY (same rule as sources.py)."""
+    keys: dict[str, str] = {}
+    if KEYFILE.exists():
+        for line in KEYFILE.read_text().splitlines():
+            line = line.strip()
+            if line and not line.startswith("#"):
+                name, sep, value = line.partition("=")
+                keys[(name if sep else "FINGRID_API_KEY").strip()] = (value if sep else name).strip()
+    return keys
+
+
+def keys_status() -> dict:
+    """Which keys exist (names only, never values)."""
+    saved = read_keys()
+    have = [n for n in KEY_NAMES if os.environ.get(n) or saved.get(n)]
+    return {"set": have, "missing": [n for n in KEY_NAMES if n not in have]}
+
+
+def check_key_request(body: object) -> tuple[str, str] | str:
+    """Validate a key save request. Returns (name, value) or an error message."""
+    if not isinstance(body, dict):
+        return "body must be a JSON object"
+    name, value = body.get("name"), body.get("value")
+    if name not in KEY_NAMES:
+        return f"unknown key name; use one of: {', '.join(KEY_NAMES)}"
+    if not isinstance(value, str) or not value.strip():
+        return "key is empty"
+    value = value.strip()
+    if len(value) > 300 or any(c in value for c in "\r\n"):
+        return "key has odd characters"
+    return name, value
+
+
+def save_key(name: str, value: str) -> None:
+    """Append to key.txt (0600) and use it for the next run without a restart."""
+    fd = os.open(KEYFILE, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
+    with os.fdopen(fd, "a") as f:
+        f.write(f"{name}={value}\n")
+    os.environ[name] = value
+
+
 def with_context(prompt: str, now: datetime | None = None) -> str:
     """Small models do not know the time and pass words like 'now' as a time window: give them the real time and the format."""
     now = now or datetime.now(timezone.utc)
@@ -107,7 +151,7 @@ def build_cmd(prompt: str, model: str) -> list[str]:
 
 
 def _run_job(job: dict) -> None:
-    env = {**os.environ, "HARNESS_PROVIDER": "llamacpp", "LLAMACPP_BASE_URL": LLAMA_URL, "PYTHONUNBUFFERED": "1"}
+    env = {**os.environ, "HARNESS_PROVIDER": "llamacpp", "LLAMACPP_BASE_URL": LLAMA_URL, "PYTHONUNBUFFERED": "1", "HARNESS_NO_KEYS": "1"}
     try:
         proc = subprocess.Popen(
             build_cmd(job["prompt"], job["model"]), cwd=HERE, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
@@ -215,7 +259,9 @@ class Handler(BaseHTTPRequestHandler):
             return
         url = urlsplit(self.path)
         if url.path == "/api/info":
-            self._send(200, {"llama_url": LLAMA_URL, "models": list_models(), "presets": [{"id": k, "label": v["label"], "about": v["about"]} for k, v in PRESETS.items()]})
+            self._send(200, {"llama_url": LLAMA_URL, "models": list_models(), "max_prompt": MAX_PROMPT, "keys": keys_status()})
+        elif url.path == "/api/keys":
+            self._send(200, keys_status())
         elif url.path == "/api/job":
             since = int((parse_qs(url.query).get("since") or ["0"])[0] or 0)
             self._send(200, {"job": job_view(since)})
@@ -244,6 +290,18 @@ class Handler(BaseHTTPRequestHandler):
             if isinstance(started, str):
                 return self._send(409, {"error": started})
             self._send(200, {"job": job_view()})
+        elif url.path == "/api/keys":
+            if "application/json" not in (self.headers.get("Content-Type") or ""):
+                return self._send(415, {"error": "send JSON"})
+            try:
+                body = json.loads(raw or b"{}")
+            except ValueError:
+                return self._send(400, {"error": "bad JSON"})
+            checked = check_key_request(body)
+            if isinstance(checked, str):
+                return self._send(400, {"error": checked})
+            save_key(*checked)
+            self._send(200, keys_status())
         elif url.path == "/api/stop":
             self._send(200, {"stopped": stop_job()})
         else:

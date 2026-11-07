@@ -28,6 +28,27 @@ test("the panel says how to start the server when it is not running", async () =
   expect(screen.getByText(/start_harness\.sh/)).toBeTruthy();
 });
 
+test("the panel asks for missing API keys and saves one", async () => {
+  const calls: { url: string; body?: string }[] = [];
+  const ok = (data: unknown) => ({ ok: true, status: 200, json: async () => data });
+  global.fetch = vi.fn(async (url: string, init?: RequestInit) => {
+    calls.push({ url, body: init?.body as string | undefined });
+    if (url.endsWith("/info")) return ok({ llama_url: "x", models: ["ggml-org/gemma-4-E4B-it-GGUF:Q8_0"], presets: [{ id: "imbalance", label: "Imbalance price, next 12 h", about: "About imbalance." }], keys: { set: [], missing: ["FINGRID_API_KEY", "ENTSOE_API_KEY"] } });
+    if (url.endsWith("/keys")) return ok({ set: ["FINGRID_API_KEY"], missing: ["ENTSOE_API_KEY"] });
+    if (url.endsWith("/job")) return ok({ job: null });
+    return ok({});
+  }) as unknown as typeof fetch;
+
+  render(<HarnessPanel pollMs={10} />);
+  await waitFor(() => expect(screen.getByTestId("harness-keys")).toBeTruthy());
+  const field = screen.getByLabelText("key value") as HTMLInputElement;
+  expect(field.type).toBe("password");                                            // the key is not shown as it is typed
+  fireEvent.change(field, { target: { value: "secret" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(calls.some((c) => c.url.endsWith("/keys") && c.body!.includes("secret"))).toBe(true));
+  await waitFor(() => expect((screen.getByLabelText("key name") as HTMLSelectElement).value).toBe("ENTSOE_API_KEY"));
+});
+
 test("start a run, watch the progress, see the answer table", async () => {
   let polls = 0;
   const calls: { url: string; body?: string }[] = [];

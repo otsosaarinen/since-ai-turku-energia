@@ -88,3 +88,19 @@ def test_failed_job_is_reported(monkeypatch):
     server.start_job("imbalance", "m")
     assert _wait(lambda: server.job_view()["status"] != "running")
     assert server.job_view()["status"] == "error"
+
+
+def test_keys_are_checked_and_saved_without_echoing_values(tmp_path, monkeypatch):
+    monkeypatch.setattr(server, "KEYFILE", tmp_path / "key.txt")
+    monkeypatch.delenv("FINGRID_API_KEY", raising=False)
+    assert server.keys_status()["missing"] == list(server.KEY_NAMES)
+    for bad in (None, {}, {"name": "EVIL_KEY", "value": "x"}, {"name": "FINGRID_API_KEY", "value": "  "},
+                {"name": "FINGRID_API_KEY", "value": "a\nb"}, {"name": "FINGRID_API_KEY", "value": 3}):
+        assert isinstance(server.check_key_request(bad), str), bad
+    name, value = server.check_key_request({"name": "FINGRID_API_KEY", "value": " secret "})
+    assert (name, value) == ("FINGRID_API_KEY", "secret")
+    server.save_key(name, value)
+    assert server.keys_status()["set"] == ["FINGRID_API_KEY"]
+    assert "secret" not in str(server.keys_status())          # values never leave the server
+    assert "FINGRID_API_KEY=secret" in (tmp_path / "key.txt").read_text()
+    monkeypatch.delenv("FINGRID_API_KEY", raising=False)

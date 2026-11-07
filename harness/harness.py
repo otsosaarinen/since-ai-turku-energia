@@ -1,8 +1,10 @@
 """
 harness.py — minimal AI harness for statistics & prediction
-Usage: python harness.py [-p ollama|llamacpp|openrouter] [-m MODEL]
-Requires: pip install openai pandas numpy scipy statsmodels scikit-learn
-Live data sources and the Nord Pool scope live in sources.py.
+Usage: uv run --group harness python harness.py [-p ollama|llamacpp|openrouter] [-m MODEL]
+Deps:  uv sync --group harness (openai, pandas, numpy, scipy, statsmodels, scikit-learn)
+Live data sources and the Nord Pool scope live in sources.py. Each answer's fenced csv block is
+also written to reports/prediction.csv and reports/prediction.md; a value that moved more than
+3 % against the previous run keeps its reasoning in reports/memory.json (see report.py).
 """
 
 import getpass
@@ -14,6 +16,7 @@ from pathlib import Path
 
 from openai import OpenAI
 from sources import SOURCES, SYSTEM, fetch_url, get_data
+from report import write_reports
 
 # ─── Config ───────────────────────────────────────────────
 BASE_URLS = {  # every provider speaks the OpenAI API
@@ -133,9 +136,9 @@ def pick_provider() -> str:
 KEYFILE = Path(__file__).with_name("key.txt")
 
 
-def ask_keys(provider: str, tty: bool | None = None) -> None:
-    """Ask for missing keys on startup; Enter skips. Saved to key.txt (0600)."""
-    if not (sys.stdin.isatty() if tty is None else tty):
+def ask_keys(provider: str) -> None:
+    """Ask for missing keys before the first request; Enter skips. Saved to key.txt (0600)."""
+    if os.environ.get("HARNESS_NO_KEYS") or not sys.stdin.isatty():
         return
     for name in ("OPENROUTER_API_KEY", "FINGRID_API_KEY", "ENTSOE_API_KEY"):
         if name == "OPENROUTER_API_KEY" and provider != "openrouter":
@@ -210,24 +213,25 @@ def chat(messages: list) -> str:
     log("[stop] tool turn budget used up")
     return "(max tool turns reached)"
 
+def export(answer: str) -> str:
+    """Write the answer's fenced csv block to reports/prediction.{csv,md}; return the answer."""
+    try:
+        c, m = write_reports(answer, Path(__file__).with_name("reports"))
+        print(f"wrote {c} and {m}", file=sys.stderr)
+    except Exception as e:
+        print(f"report: {e}", file=sys.stderr)
+    return answer
 
 # ─── REPL ─────────────────────────────────────────────────
 def main():
     global client, MODEL
     provider = pick_provider()
-    one = flag("--prompt", "-q")  # one-shot: ask, print the answer, exit
-    if not one:  # interactive startup: ask for missing keys
-        ask_keys(provider)
+    one = flag("--prompt", "-q")            # one-shot: ask, print the answer, exit
+    ask_keys(provider)                      # no-op without a tty
     client, MODEL = make_client(provider)
     if one:
-        print(
-            chat(
-                [
-                    {"role": "system", "content": SYSTEM},
-                    {"role": "user", "content": one},
-                ]
-            )
-        )
+        print(export(chat([{"role": "system", "content": SYSTEM},
+                           {"role": "user", "content": one}])))
         return
     print(f"Stats harness → {provider} · {MODEL} @ {BASE_URLS[provider]}")
     print("Type 'quit' to exit.\n")
@@ -244,7 +248,7 @@ def main():
             {"role": "system", "content": SYSTEM},
             {"role": "user", "content": user},
         ]
-        print(f"\nassistant> {chat(messages)}\n")
+        print(f"\nassistant> {export(chat(messages))}\n")
 
 
 if __name__ == "__main__":
