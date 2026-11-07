@@ -60,6 +60,7 @@ test("a key that is already saved is still asked on the page, so the Fingrid key
   }) as unknown as typeof fetch;
 
   render(<HarnessPanel pollMs={10} />);
+  fireEvent.click(await screen.findByText("Settings"));                  // the key fields live in the Settings pop-up
   await waitFor(() => expect(screen.getByTestId("harness-keys")).toBeTruthy());
   expect(screen.getByLabelText("FINGRID_API_KEY value")).toBeTruthy();   // key.txt already holds it, yet the field is offered here
   expect(screen.getByLabelText("ENTSOE_API_KEY value")).toBeTruthy();

@@ -172,6 +172,7 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
   const [err, setErr] = useState("");
   const [keys, setKeys] = useState<Keys>({ set: [], missing: [] });
   const [keyValue, setKeyValue] = useState<Record<string, string>>({});
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const nextRef = useRef(0);
   const logRef = useRef<HTMLOListElement>(null);
   const running = job?.status === "running";
@@ -260,26 +261,10 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
               </div>
               <p className="text-xs text-muted-foreground" data-testid="harness-about">{info.presets.find((p) => p.id === preset)?.about}</p>
             </div>
-            {(keys.missing.length > 0 || keys.set.length > 0) && (
-              <div className="flex flex-col gap-2 text-sm" data-testid="harness-keys">
-                <span className="font-medium">API keys</span>
-                <p className="text-muted-foreground">Some data sources need a key. It is saved to key.txt on this computer and not shown again.</p>
-                {[...keys.missing, ...keys.set].map((n) => (
-                  <div key={n} className="flex items-end gap-2">
-                    <label className="flex min-w-0 flex-1 flex-col gap-1">
-                      <span className="text-xs text-muted-foreground">{n}{keys.set.includes(n) ? " (saved)" : ""}</span>
-                      <input aria-label={`${n} value`} type="password" autoComplete="off" className="h-9 min-w-0 rounded-md border border-input bg-white px-2 text-sm"
-                        value={keyValue[n] ?? ""} onChange={(e) => setKeyValue((v) => ({ ...v, [n]: e.target.value }))} />
-                    </label>
-                    <Button size="sm" variant="outline" className={outlineBtn} disabled={!(keyValue[n] ?? "").trim()} onClick={saveKey(n)}>Save</Button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="flex items-center gap-3">
-              <Button size="sm" variant="primary" className={cn(solidBtn, "w-28")} disabled={running || !model || !preset} onClick={start}>Start run</Button>
-              <Button size="sm" variant="outline" className={cn(outlineBtn, "w-20")} disabled={!running} onClick={stop}>Stop</Button>
-              <span className="text-sm text-muted-foreground" data-testid="harness-state">{stateText(job)}</span>
+            <div className="grid grid-cols-3 gap-2">
+              <Button size="sm" variant="primary" className={cn(solidBtn, "w-full")} disabled={running || !model || !preset} onClick={start}>Start run</Button>
+              <Button size="sm" variant="outline" className={cn(outlineBtn, "w-full")} disabled={!running} onClick={stop}>Stop</Button>
+              <Button size="sm" variant="outline" className={cn(outlineBtn, "w-full")} aria-haspopup="dialog" onClick={() => setSettingsOpen(true)}>Settings</Button>
             </div>
             {err && <p className="text-sm text-destructive" role="alert">{err}</p>}
           </div>
@@ -348,29 +333,18 @@ export default function HarnessPanel({ pollMs = 1000 }: { pollMs?: number }) {
               </select>
             </label>
             <b className="text-sm font-medium">API keys</b>
-            {keys.set.length > 0 && (
-              <ul className="flex flex-col gap-1 text-sm">
-                {keys.set.map((n) => <li key={n} className="flex items-center justify-between rounded-md bg-bg-light px-3 py-2"><span>{n}</span><span className="text-muted-foreground">✓ set</span></li>)}
-              </ul>
-            )}
-            {keys.missing.length > 0 ? (
-              <div className="flex flex-col gap-3 text-sm">
-                <label className="flex flex-col gap-1">
-                  <span className="font-medium">Key</span>
-                  <select aria-label="key name" className="h-9 w-full rounded-md border border-input bg-white px-3 text-sm" value={keyName} onChange={(e) => setKeyName(e.target.value)}>
-                    {keys.missing.map((n) => <option key={n} value={n}>{n}</option>)}
-                  </select>
+            {[...keys.missing, ...keys.set].map((n) => (
+              <div key={n} className="flex items-end gap-2 text-sm">
+                <label className="flex min-w-0 flex-1 flex-col gap-1">
+                  <span className="font-medium">{n}{keys.set.includes(n) ? " (saved)" : ""}</span>
+                  <input aria-label={`${n} value`} type="password" autoComplete="off" className="h-9 w-full min-w-0 rounded-md border border-input bg-white px-3 text-sm"
+                    value={keyValue[n] ?? ""} onChange={(e) => setKeyValue((v) => ({ ...v, [n]: e.target.value }))} />
                 </label>
-                <label className="flex flex-col gap-1">
-                  <span className="font-medium">Value</span>
-                  <input aria-label="key value" type="password" autoComplete="off" className="h-9 w-full rounded-md border border-input bg-white px-3 text-sm" value={keyValue} onChange={(e) => setKeyValue(e.target.value)} />
-                </label>
+                <Button size="sm" variant="outline" className={cn(outlineBtn, "w-20")} disabled={!(keyValue[n] ?? "").trim()} onClick={saveKey(n)}>Save</Button>
               </div>
-            ) : <p className="text-sm">All keys are set.</p>}
-            <div className="grid grid-cols-2 gap-2">
-              <Button size="sm" variant="outline" className={cn(outlineBtn, "w-full")} onClick={() => setSettingsOpen(false)}>Close</Button>
-              <Button size="sm" variant="primary" className={cn(solidBtn, "w-full")} disabled={!keyValue.trim() || keys.missing.length === 0} onClick={saveKey}>Save</Button>
-            </div>
+            ))}
+            <p className="text-xs text-muted-foreground">Keys are saved to key.txt on this computer and not shown again.</p>
+            <Button size="sm" variant="outline" className={cn(outlineBtn, "w-full")} onClick={() => setSettingsOpen(false)}>Close</Button>
           </div>
         </div>
       )}

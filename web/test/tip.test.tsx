@@ -16,7 +16,7 @@ test("the hover window on the forecast chart gives the numbers and why the forec
   const { container } = render(<ChartTip active payload={[{ payload: point }]} />);
   const tip = container.textContent!;
   expect(tip).toMatch(/07\/11\/2026 15:00/);                                            // Finnish time
-  expect(tip).toMatch(/Forecast \(most likely price\): 42.5 €\/MWh/);
+  expect(tip).toMatch(/Forecast: 42.5 €\/MWh/);
   expect(tip).toMatch(/Why: the day-ahead price of electricity; the wind power forecast/);   // driver groups in plain words
   expect(render(<ChartTip active={false} payload={[{ payload: point }]} />).container.textContent).toBe("");   // nothing while not hovering
 });

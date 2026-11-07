@@ -85,8 +85,8 @@ export function ChartTip({ active, payload }: { active?: boolean; payload?: { pa
         <p>Forecast: <b>{eur(r.p50)}</b></p>
         <p>Likely range: {eur(r.p10)} to {eur(r.p90)}</p>
       </>}
-      {real != null && <p>Real price: <b>{eur(real)}</b></p>}
-      {r.prevP50 != null && <p className="text-muted-foreground">Forecast made 3 h earlier: {eur(r.prevP50)}</p>}
+      {real != null && <p>{r.realKnown != null ? "Real price (known at forecast time)" : "Real price (after the forecast)"}: <b>{eur(real)}</b></p>}
+      {r.prevP50 != null && <p className="text-muted-foreground">3 h earlier: {eur(r.prevP50)}</p>}
       {r.why && <p className="text-muted-foreground">Why: {driverWords(r.why)}</p>}
     </div>
   );
