@@ -94,7 +94,7 @@ dd/mm/yyyy, and has only three "i" tooltips (period buttons, key numbers, how to
 - **Chart (in the middle, as big as possible):** forecast, likely range (blue), real price (red), the forecast made 3 h earlier (grey) and a
   "Forecast made" line. The price axis is fixed (-50 to 250 EUR/MWh, from the data's 1st to 95th percentile) so its numbers never move while time moves or plays;
   rare larger values run off the top and show in the hover tooltip. Above it: 1 h / 1 day steps that glide smoothly, a date list, a bar over the whole period, a **Play** button (speeds 1x, 3x,
-  10x forecast hours per second; stops at the end) and the **input switches**.
+  10x forecast hours per second; stops at the end). The **input switches** are stacked in a column to the left of the chart.
 - **Input switches (Current model only):** turn Fingrid's day-ahead **solar**, **wind** and **consumption** forecasts on or off. The page cannot
   re-run the model, so each of the 8 combinations is a separately trained model computed beforehand with `uv run scripts/run_variants.py`
   (7 extra variants, about 12 minutes, files in `web/public/data/variants/`). A label shows the validation error of the chosen variant.

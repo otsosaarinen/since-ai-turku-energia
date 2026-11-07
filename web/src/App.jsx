@@ -370,8 +370,9 @@ export default function App() {
               onClick={() => setSpeed(speed === 1 ? 3 : speed === 3 ? 10 : 1)}>{speed}×</Button>
           </div>
         </div>
+        <div className="mt-2 flex min-h-72 flex-1 gap-4">
         {method === "current" && (
-          <div className="mt-2 flex min-h-11 flex-wrap items-center gap-x-5 gap-y-2 border-t border-grey-light pt-2" data-testid="toggles">
+          <aside className="flex w-56 shrink-0 flex-col gap-3 border-r border-grey-light pr-4" data-testid="toggles">
             <span className="text-sm text-muted-foreground">Forecast inputs from Fingrid, published the day before:</span>
             {TOGGLES.map((t) => (
               <label key={t.id} className="flex cursor-pointer items-center gap-2 text-sm">
@@ -382,15 +383,15 @@ export default function App() {
                 <span><b className="font-medium">{t.label}</b> <span className="text-muted-foreground">{on[t.id] ? "on" : "off"}</span></span>
               </label>
             ))}
-            {vIndex && vIndex.metrics && vIndex.metrics[key] && vIndex.metrics["111"] && (
-              <span className="text-sm text-muted-foreground" data-testid="variant-metrics">
+            <div className="min-h-16 text-sm text-muted-foreground" data-testid="variant-metrics">
+              {vIndex && vIndex.metrics && vIndex.metrics[key] && vIndex.metrics["111"] && (<>
                 Average error on the validation month: <b className="text-foreground">{vIndex.metrics[key].mae.toFixed(1)}</b> €/MWh
                 {key !== "111" && <> ({(vIndex.metrics[key].mae - vIndex.metrics["111"].mae >= 0 ? "+" : "") + (vIndex.metrics[key].mae - vIndex.metrics["111"].mae).toFixed(2)} vs all inputs on)</>}
-              </span>
-            )}
-          </div>
+              </>)}
+            </div>
+          </aside>
         )}
-        <div className="mt-2 min-h-72 flex-1">
+        <div className="min-w-0 flex-1">
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={chart} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
               <CartesianGrid stroke={C.grid} strokeDasharray="3 3" vertical={false} />
@@ -410,6 +411,7 @@ export default function App() {
               <Legend wrapperStyle={{ fontSize: 12 }} />
             </ComposedChart>
           </ResponsiveContainer>
+        </div>
         </div>
         <p className="mt-1 text-xs text-muted-foreground">
           Gap before the vertical line: real prices are published about 1 hour after each quarter-hour ends, so at {hhmm(origin)} the latest price the model could see

@@ -44,8 +44,8 @@ vs spot). 8 leaves, extra-trees, 6 seeds, rounds from a time-ordered inner split
 
 ## Web viewer (web/, React + Vite + Recharts + Tailwind 4; tests Vitest + jsdom)
 - Layout: one screen, no scrolling on large screens; wave background (light-blue wave + orange hill); title row, period buttons, two method boxes,
-  a fixed-height summary strip (summary, drivers, number chips), then the chart centred and as large as possible with time controls and input
-  switches above it. No left column (the user found it unnecessary). Do not define components inside `App` (it remounts the controls; a test guards this).
+  a fixed-height summary strip (summary, drivers, number chips), then the chart centred and as large as possible with time controls above it
+  and the input switches stacked vertically in a narrow column left of the chart (the user asked for this; no other left column). Do not define components inside `App` (it remounts the controls; a test guards this).
 - Methods: boxes "Current model" and "Harness prediction" (METHODS in App.jsx). Harness has no data yet: it reads
   web/public/data/harness_{validation,final}.json (same format as validation.json) and shows "not connected yet" until they exist.
 - Input switches (TOGGLES in App.jsx, groups in src/features.py TOGGLE_GROUPS): 8 precomputed variants in web/public/data/variants/
