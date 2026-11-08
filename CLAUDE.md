@@ -54,7 +54,7 @@ Run backend commands from `backend/` (`uv sync` first; macOS needs `brew install
 | Website data from outputs/ | `uv run scripts/export_web_data.py` -> `frontend/public/data/` |
 | Organiser tools | `uv run python -I starter_package_v1/{validate_submission,score,make_templates}.py` |
 
-- Current counts (8 Nov): 164 backend tests, 172 frontend tests, ruff and eslint clean. Update these when they change.
+- Current counts (8 Nov): 164 backend tests, 176 frontend tests, ruff and eslint clean. Update these when they change.
 - Do not run the training scripts just to check something; they are slow and overwrite outputs.
 
 ## Model (details in REPORT.md)
@@ -74,6 +74,7 @@ Run backend commands from `backend/` (`uv sync` first; macOS needs `brew install
 - Real-price lines: solid "known" and dashed "after forecast", named in the legend and tooltip.
 - Text areas have fixed heights so changing numbers never shift the chart. The summary strip is short on purpose: do not add text (user wants less).
 - Wording is plain language (no "p50", "in band"). Do not add `Info` tooltips (the user found them annoying).
+- Phones (below lg): chart, time controls, a Settings button (period + inputs in a pop-up), summary, past performance. "How to use" button opens the explanation pop-up (both use components/Modal.tsx).
 - Not seen on a real phone or in Safari after the redesign: only code and tests were checked.
 
 ## Brand and UI rules (guide: ~/Downloads/Graafinen ohjeisto.pdf, web pp. 12-14, 48-49)
@@ -108,11 +109,11 @@ Run backend commands from `backend/` (`uv sync` first; macOS needs `brew install
 - Submission `backend/outputs/final/forecast_backtest.csv` was uploaded on 7 Nov and is unchanged (sha256 starts 4f396b56dd9bae1d). It is not in git.
 - Everything is merged on `main` and pushed (restructure, Next.js, harness package, the teammate's 0.6). Check `git status -sb` for later edits.
 - Hosting: Vercel project `imbalance-forecast-demo` is connected to GitHub (Root Directory `frontend`, Node 22, `NEXT_PUBLIC_HIDE_HARNESS=true`).
-  The 16 website JSON files are in a public Vercel Blob store `imbalance-forecast-demo-blob` (store_DPxKJqNf9RTz5lho) and
-  `NEXT_PUBLIC_DATA_BASE_URL` points to it. Credentials used for the upload were rotated. Only those 16 files may ever go there.
+  The 17 website JSON files (16 forecasts + variants/index.json) are in a public Vercel Blob store `imbalance-forecast-demo-blob` (store_DPxKJqNf9RTz5lho) and
+  `NEXT_PUBLIC_DATA_BASE_URL` points to it. Credentials used for the upload were rotated. Only those 17 files may ever go there.
 - Delete after the event: the Blob store, old Vercel deployments, `backend/data`, `backend/starter_package_v1`, `backend/outputs`.
 - From the briefing (read 8 Nov): the demo video may be up to 5 min (the user plans 2); a hosted URL is not required (the video is the demo);
   Level 2 (20% of the score, jury) rewards a past-performance view (previous day, week, month), moving time into the past, alerts and
-  justified suggestions. The website has time travel and alerts but NO past-performance view yet. The brand guide asks for the official
+  justified suggestions. The website has time travel, alerts and (since 8 Nov) a past-performance line (last 24 h / 7 days / since start; validation period only). The brand guide asks for the official
   presentation template for slides (not available) and a warm, plain, solution-focused tone.
 - Still to do by the user: slides (5-8), the demo video, Safari check of the redesign (the y-axis title and error chip fixes are untested visually).

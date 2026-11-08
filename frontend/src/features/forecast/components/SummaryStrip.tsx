@@ -1,4 +1,4 @@
-import { Badge, Card, cn } from "@/design-system/the-reading-room-3066fa";
+import { Card, cn } from "@/design-system/the-reading-room-3066fa";
 import { StatChip } from "./StatChip";
 import type { OriginSummary } from "../lib/originSummary";
 
@@ -11,23 +11,16 @@ const RECOMMENDATION_BOX = "flex items-center gap-1 rounded-sm px-2 py-0.5";
 
 /** One slim strip: what the forecast means, the operational hints, and the key numbers. */
 export function SummaryStrip({ summary, hasActuals }: SummaryStripProps) {
-  const { highAlert, lowAlert, trendRecommendation } = summary;
+  const { highAlert, lowAlert } = summary;
   return (
     <Card className="order-last flex flex-wrap items-center gap-x-6 gap-y-3 border-l-4 border-l-brand p-3 lg:order-none lg:flex-nowrap lg:overflow-visible">
       <div className="min-w-64 flex-1 lg:min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <p className="leading-snug lg:line-clamp-1" title={summary.directionText}>{summary.directionText}</p>
-          {highAlert && (
-            <Badge variant={highAlert.severity === "CRITICAL" ? "destructive" : "primary"}>
-              {highAlert.severity === "CRITICAL" ? "Critical high spike" : "High spike risk"}
-            </Badge>
-          )}
-          {lowAlert && <Badge variant="navy">{lowAlert.severity === "CRITICAL" ? "Critical low spike" : "Low price risk"}</Badge>}
-          {!highAlert && !lowAlert && <Badge variant="soft">Normal risk (&lt; 20%)</Badge>}
         </div>
 
         {/* Operational recommendations for shift supervisors */}
-        {(highAlert || lowAlert || trendRecommendation) && (
+        {(highAlert || lowAlert) && (
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
             {highAlert && (
               <div className={cn(RECOMMENDATION_BOX, highAlert.severity === "CRITICAL" ? "bg-destructive-soft text-destructive" : "bg-accent text-accent-foreground")}>
@@ -39,12 +32,6 @@ export function SummaryStrip({ summary, hasActuals }: SummaryStripProps) {
               <div className={cn(RECOMMENDATION_BOX, "bg-bg-light text-navy")}>
                 <span className="font-semibold">{lowAlert.timeWindow}:</span>
                 <span>{lowAlert.recommendation}</span>
-              </div>
-            )}
-            {!highAlert && !lowAlert && trendRecommendation && (
-              <div className={cn(RECOMMENDATION_BOX, "bg-muted text-foreground")}>
-                <span className="font-semibold">Regime:</span>
-                <span>{trendRecommendation}</span>
               </div>
             )}
           </div>

@@ -18,7 +18,7 @@ interface ForecastChartProps {
 export function ForecastChart({ series, priceAxis, hasActuals }: ForecastChartProps) {
   const { points, forecastTimeMs, hourTicks } = series;
   return (
-    <div className="h-80 min-w-0 shrink-0 lg:h-auto lg:flex-1">
+    <div className="order-2 h-80 min-w-0 shrink-0 lg:order-none lg:h-auto lg:flex-1">
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={points} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
           <CartesianGrid stroke={CHART_COLORS.grid} strokeDasharray="3 3" vertical={false} />

@@ -26,7 +26,9 @@
 6. **Situational view (web viewer, `frontend/`).** One screen: a plain-language summary and the main drivers, the chance of a high or low price
    spike and of the grid needing more power, and a chart of the forecast, its likely range, the real price and the forecast made 3 hours
    earlier. Time can be moved to any forecast of the period (bar, date list, 1 h / 1 day steps) or played forward smoothly, so the usefulness can be
-   shown over time and not only live. Three switches turn Fingrid's solar, wind and consumption forecasts on and off (each combination is a
+   shown over time and not only live. A line under the summary shows how the forecasts did before the chosen time (average error and the
+   share of real prices inside the likely range for the last 24 hours, the last 7 days and since the start). A "How to use" pop-up explains the
+   page. Three switches turn Fingrid's solar, wind and consumption forecasts on and off (each combination is a
    separately trained model, see "Input switches" below).
    A second prediction method ("Harness prediction", an AI model that runs Python on live open data; code in `backend/harness/`,
    see "Harness prediction" below) has a place in the viewer; it is not part of the scored submission.

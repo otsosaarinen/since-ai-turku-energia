@@ -102,3 +102,28 @@ test("the chosen tab is shown in the address and read back from it", async () =>
   fireEvent.click(screen.getByRole("button", { name: /Harness prediction/ }));
   expect(window.location.search).toBe("?method=harness");
 });
+
+test("the explanation is hidden until 'How to use' is clicked, and closes again", async () => {
+  global.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
+  mockDataFetch();
+  render(<ForecastViewer />);
+  await waitFor(() => expect(screen.getByText(/high price spike/)).toBeTruthy(), { timeout: 15000 });
+  expect(screen.queryByRole("dialog")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "How to use" }));
+  expect(screen.getByRole("dialog").textContent).toMatch(/Press Play/);
+  fireEvent.click(screen.getByRole("button", { name: "Close" }));
+  expect(screen.queryByRole("dialog")).toBeNull();
+});
+
+test("on phones the period and input controls open from a Settings button", async () => {
+  global.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
+  mockDataFetch();
+  render(<ForecastViewer />);
+  await waitFor(() => expect(screen.getByText(/high price spike/)).toBeTruthy(), { timeout: 15000 });
+  fireEvent.click(screen.getByRole("button", { name: /Settings: period and inputs/ }));
+  const dialog = screen.getByRole("dialog");
+  expect(dialog.textContent).toMatch(/Forecast inputs/);
+  expect(dialog.textContent).toMatch(/Test forecast 5 Oct/);
+  fireEvent.keyDown(window, { key: "Escape" });
+  expect(screen.queryByRole("dialog")).toBeNull();
+});

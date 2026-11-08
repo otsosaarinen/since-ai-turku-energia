@@ -10,6 +10,7 @@ import { ForecastChart } from "./components/ForecastChart";
 import { MessageCard } from "./components/MessageCard";
 import { PageHeader } from "./components/PageHeader";
 import { PageShell } from "./components/PageShell";
+import { PastPerformance } from "./components/PastPerformance";
 import { SidePanel } from "./components/SidePanel";
 import { SummaryStrip } from "./components/SummaryStrip";
 import { TimeControls } from "./components/TimeControls";
@@ -22,6 +23,7 @@ import { buildActualPriceLookup } from "./lib/actualPrices";
 import { buildChartSeries } from "./lib/chartSeries";
 import { buildForecastIndex, createDeliveryLookup } from "./lib/forecastIndex";
 import { summarizeOrigin } from "./lib/originSummary";
+import { pastPerformance } from "./lib/pastPerformance";
 import { computePriceAxis } from "./lib/priceAxis";
 import type { InputId, MethodKey, PeriodKey } from "./types";
 
@@ -39,7 +41,6 @@ export default function ForecastViewer({ initialMethod }: { initialMethod?: Meth
   const [method, setMethod] = useMethodInAddress(initialMethod);
   const [period, setPeriod] = useState<PeriodKey>("validation");
   const [inputsOn, setInputsOn] = useState<Record<InputId, boolean>>(ALL_INPUTS_ON);
-  const [isInputsPopupOpen, setIsInputsPopupOpen] = useState(false);
   const variantIndex = useVariantIndex();
 
   // Which input switches are off decides which separately trained model variant is shown ("111" = the normal model).
@@ -53,6 +54,8 @@ export default function ForecastViewer({ initialMethod }: { initialMethod?: Meth
   const priceAxis = useMemo(() => (payload ? computePriceAxis(payload) : null), [payload]);
   const actualPrices = useMemo(() => (payload ? buildActualPriceLookup(payload) : new Map<string, number>()), [payload]);
   const playback = usePlayback(forecastIndex ? forecastIndex.origins : null);
+  const originMs = forecastIndex ? Date.parse(forecastIndex.origins[playback.selectedIndex]) : 0;
+  const performance = useMemo(() => (payload ? pastPerformance(payload, originMs) : null), [payload, originMs]);
 
   const header = <PageHeader activeMethod={method} onSelectMethod={setMethod} />;
   const shell = (children: ReactNode) => (
@@ -98,6 +101,7 @@ export default function ForecastViewer({ initialMethod }: { initialMethod?: Meth
     <>
       {header}
       <SummaryStrip summary={summary} hasActuals={payload.hasActuals} />
+      {performance && <PastPerformance windows={performance} />}
 
       {/* the chart in the middle, as big as possible */}
       <Card className="flex min-h-[26rem] flex-1 flex-col gap-2 p-3 sm:p-4 lg:gap-0">
@@ -118,7 +122,7 @@ export default function ForecastViewer({ initialMethod }: { initialMethod?: Meth
             onCycleSpeed={playback.cycleSpeed}
           />
         </div>
-        <div className="order-2 flex min-h-72 flex-1 flex-col gap-2 lg:order-none lg:mt-2 lg:flex-row lg:gap-4">
+        <div className="contents lg:mt-2 lg:flex lg:min-h-72 lg:flex-1 lg:flex-row lg:gap-4">
           {method === "current" && (
             <SidePanel
               period={period}
@@ -127,8 +131,6 @@ export default function ForecastViewer({ initialMethod }: { initialMethod?: Meth
               onToggleInput={(input) => setInputsOn({ ...inputsOn, [input]: !inputsOn[input] })}
               variantKey={variantKey}
               variantIndex={variantIndex}
-              isInputsPopupOpen={isInputsPopupOpen}
-              onToggleInputsPopup={() => setIsInputsPopupOpen(!isInputsPopupOpen)}
             />
           )}
           <ForecastChart series={series} priceAxis={priceAxis} hasActuals={payload.hasActuals} />
